@@ -35,6 +35,12 @@ if (!token) {
 
 const decoded = jwt.decode(token);
 
+if (!decoded || !decoded.sub) {
+  console.log("TOKEN INVALID:", token);
+  console.log("DECODED:", decoded);
+  return res.status(401).json({ error: "Invalid token" });
+}
+
 const user_id = decoded.sub;
 const { message } = req.body;
 
