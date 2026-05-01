@@ -7,17 +7,13 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// DEBUG (poți șterge după)
-console.log("SUPABASE_URL:", process.env.SUPABASE_URL);
-console.log("SUPABASE_KEY exists:", !!process.env.SUPABASE_KEY);
-console.log("OPENAI_API_KEY exists:", !!process.env.OPENAI_API_KEY);
-
-// Conectare Supabase
+// ================== SUPABASE ==================
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 );
 
+// ================== AUTH ==================
 async function authMiddleware(req, res, next) {
   const token = req.headers.authorization?.split(" ")[1];
 
@@ -32,118 +28,107 @@ async function authMiddleware(req, res, next) {
   }
 
   req.user = data.user;
-
   next();
 }
 
-
-// OpenAI
+// ================== OPENAI ==================
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-// Endpoint chat
+// ================== CHAT ==================
 app.post("/chat", authMiddleware, async (req, res) => {
   try {
-   const user_id = req.user.id;
-const { message } = req.body;
+    const user_id = req.user.id;
+    const { message } = req.body;
 
-if (!message) {
-  return res.status(400).json({ error: "Lipsește mesajul" });
-}
+    if (!message) {
+      return res.status(400).json({ error: "Lipsește mesajul" });
+    }
 
-    // Luăm planul
-const { data, error } = await supabase
-  .from("subscriptions")
-  .select("plan")
-  .eq("user_id", user_id)
-  .eq("is_active", true)
-  .single();
+    // ================== PLAN ==================
+    const { data: sub, error: subError } = await supabase
+      .from("subscriptions")
+      .select("plan")
+      .eq("user_id", user_id)
+      .eq("is_active", true)
+      .single();
 
-console.log("SUB DATA:", data);
-console.log("SUB ERROR:", error);
+    if (subError || !sub) {
+      return res.status(400).json({ error: "Nu există abonament" });
+    }
 
-if (error) {
-  return res.status(500).json({ error: "Eroare DB", details: error });
-}
+    const plan = sub.plan;
 
-if (!data) {
-  return res.status(400).json({ error: "Nu există abonament pentru acest user" });
-}
-
-const plan = data.plan;
-
-    let systemPrompt = "";
+    let systemPrompt = "Ești asistent de nutriție.";
 
     if (plan === "FREE") {
       systemPrompt =
-        "Ești un asistent de nutriție de bază. Răspunde scurt și simplu, în limba română.";
+        "Ești un asistent de nutriție de bază. Răspunde scurt și simplu.";
     } else if (plan === "CORE") {
       systemPrompt =
-        "Ești un coach de nutriție profesionist. Răspunde structurat și util, în limba română.";
+        "Ești un coach de nutriție profesionist. Răspunde structurat.";
     } else if (plan === "EXPERT") {
       systemPrompt =
-        "Ești expert de top în nutriție. Răspunde detaliat și strategic, în limba română.";
-    } else {
-      systemPrompt = "Ești asistent de nutriție. Răspunde în română.";
+        "Ești expert de top în nutriție. Răspunde detaliat și strategic.";
     }
 
+    // ================== CONVERSATION ==================
+    let { data: conv } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("user_id", user_id)
+      .limit(1);
+
+    let conversation_id;
+
+    if (!conv || conv.length === 0) {
+      const { data: newConv } = await supabase
+        .from("conversations")
+        .insert([{ user_id }])
+        .select();
+
+      conversation_id = newConv[0].id;
+    } else {
+      conversation_id = conv[0].id;
+    }
+
+    // ================== HISTORY ==================
+    const { data: history } = await supabase
+      .from("messages")
+      .select("role, content")
+      .eq("conversation_id", conversation_id)
+      .order("created_at", { ascending: true })
+      .limit(10);
+
+    // ================== AI ==================
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        {
-          role: "system",
-          content: systemPrompt
-        },
-        {
-          role: "user",
-          content: message
-        }
+        { role: "system", content: systemPrompt },
+        ...(history || []),
+        { role: "user", content: message }
       ]
     });
 
-   const reply = response.choices[0].message.content;
+    const reply = response.choices[0].message.content;
 
-// ================== NEW ==================
+    // ================== SAVE ==================
+    await supabase.from("messages").insert([
+      {
+        conversation_id,
+        role: "user",
+        content: message
+      },
+      {
+        conversation_id,
+        role: "assistant",
+        content: reply
+      }
+    ]);
 
-// 1. găsim sau creăm conversația
-let { data: conv } = await supabase
-  .from("conversations")
-  .select("id")
-  .eq("user_id", user_id)
-  .limit(1);
-
-let conversation_id;
-
-if (!conv || conv.length === 0) {
-  const { data: newConv } = await supabase
-    .from("conversations")
-    .insert([{ user_id }])
-    .select();
-
-  conversation_id = newConv[0].id;
-} else {
-  conversation_id = conv[0].id;
-}
-
-// 2. salvăm mesajele
-await supabase.from("messages").insert([
-  {
-    conversation_id,
-    role: "user",
-    content: message
-  },
-  {
-    conversation_id,
-    role: "assistant",
-    content: reply
-  }
-]);
-
-// ================== PÂNĂ AICI ==================
-
-// 3. răspuns către client
-res.json({ reply });
+    // ================== RESPONSE ==================
+    res.json({ reply });
 
   } catch (err) {
     console.error("EROARE:", err);
@@ -151,7 +136,7 @@ res.json({ reply });
   }
 });
 
-// PORT corect pentru Railway
+// ================== SERVER ==================
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
