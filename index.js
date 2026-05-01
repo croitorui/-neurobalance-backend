@@ -33,15 +33,23 @@ if (!token) {
   return res.status(401).json({ error: "No token" });
 }
 
-const decoded = jwt.decode(token);
+let payload;
 
-if (!decoded || !decoded.sub) {
-  console.log("TOKEN INVALID:", token);
-  console.log("DECODED:", decoded);
-  return res.status(401).json({ error: "Invalid token" });
+try {
+  payload = JSON.parse(
+    Buffer.from(token.split(".")[1], "base64").toString()
+  );
+} catch (e) {
+  console.log("DECODE FAIL:", e);
+  return res.status(401).json({ error: "Invalid token format" });
 }
 
-const user_id = decoded.sub;
+if (!payload || !payload.sub) {
+  console.log("PAYLOAD:", payload);
+  return res.status(401).json({ error: "Invalid token payload" });
+}
+
+const user_id = payload.sub;
 const { message } = req.body;
 
 if (!message) {
