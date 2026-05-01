@@ -2,7 +2,6 @@ import express from "express";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import cors from "cors";
-import jwt from "jsonwebtoken";
 
 const app = express();
 app.use(express.json());
@@ -19,37 +18,34 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
+async function authMiddleware(req, res, next) {
+  const token = req.headers.authorization?.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).json({ error: "No token" });
+  }
+
+  const { data, error } = await supabase.auth.getUser(token);
+
+  if (error || !data?.user) {
+    return res.status(401).json({ error: "Invalid token" });
+  }
+
+  req.user = data.user;
+
+  next();
+}
+
+
 // OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
 // Endpoint chat
-app.post("/chat", async (req, res) => {
+app.post("/chat", authMiddleware, async (req, res) => {
   try {
-   const token = req.headers.authorization?.split(" ")[1];
-
-if (!token) {
-  return res.status(401).json({ error: "No token" });
-}
-
-let payload;
-
-try {
-  payload = JSON.parse(
-    Buffer.from(token.split(".")[1], "base64").toString()
-  );
-} catch (e) {
-  console.log("DECODE FAIL:", e);
-  return res.status(401).json({ error: "Invalid token format" });
-}
-
-if (!payload || !payload.sub) {
-  console.log("PAYLOAD:", payload);
-  return res.status(401).json({ error: "Invalid token payload" });
-}
-
-const user_id = payload.sub;
+   const user_id = req.user.id;
 const { message } = req.body;
 
 if (!message) {
@@ -61,7 +57,8 @@ const { data, error } = await supabase
   .from("subscriptions")
   .select("plan")
   .eq("user_id", user_id)
-  .eq("is_active", true);
+  .eq("is_active", true)
+  .single();
 
 console.log("SUB DATA:", data);
 console.log("SUB ERROR:", error);
@@ -70,11 +67,11 @@ if (error) {
   return res.status(500).json({ error: "Eroare DB", details: error });
 }
 
-if (!data || data.length === 0) {
+if (!data) {
   return res.status(400).json({ error: "Nu există abonament pentru acest user" });
 }
 
-const plan = data[0].plan;
+const plan = data.plan;
 
     let systemPrompt = "";
 
