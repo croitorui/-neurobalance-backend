@@ -191,6 +191,40 @@ app.post("/chat", authMiddleware, async (req, res) => {
   }
 });
 
+// ================== HISTORY ==================
+app.get("/history", authMiddleware, async (req, res) => {
+  const user_id = req.user.id;
+
+  const { data, error } = await supabase
+    .from("conversations")
+    .select("id, created_at")
+    .eq("user_id", user_id)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return res.status(500).json({ error });
+  }
+
+  res.json({ conversations: data });
+});
+
+// ================== MESSAGES ==================
+app.get("/messages/:id", authMiddleware, async (req, res) => {
+  const { id } = req.params;
+
+  const { data, error } = await supabase
+    .from("messages")
+    .select("role, content")
+    .eq("conversation_id", id)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    return res.status(500).json({ error });
+  }
+
+  res.json({ messages: data });
+});
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
