@@ -7,17 +7,23 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Conectare Supabase (din ENV)
+// DEBUG (poți șterge după)
+console.log("SUPABASE_URL:", process.env.SUPABASE_URL);
+console.log("SUPABASE_KEY exists:", !!process.env.SUPABASE_KEY);
+console.log("OPENAI_API_KEY exists:", !!process.env.OPENAI_API_KEY);
+
+// Conectare Supabase
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 );
 
-// OpenAI (din ENV)
+// OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
+// Endpoint chat
 app.post("/chat", async (req, res) => {
   try {
     const { user_id, message } = req.body;
@@ -26,7 +32,7 @@ app.post("/chat", async (req, res) => {
       return res.status(400).json({ error: "Lipsește user_id sau mesajul" });
     }
 
-    // 1. Luăm planul userului
+    // Luăm planul
     const { data, error } = await supabase
       .from("subscriptions")
       .select("plan")
@@ -40,30 +46,27 @@ app.post("/chat", async (req, res) => {
 
     const plan = data.plan;
 
-    // 2. Prompt diferit în funcție de plan
     let systemPrompt = "";
 
     if (plan === "FREE") {
       systemPrompt =
-        "Ești un asistent de nutriție de bază. Răspunde scurt, simplu și clar, în limba română. Nu oferi detalii complexe.";
+        "Ești un asistent de nutriție de bază. Răspunde scurt și simplu, în limba română.";
     } else if (plan === "CORE") {
       systemPrompt =
-        "Ești un coach de nutriție profesionist. Oferă sfaturi structurate și utile, în limba română.";
+        "Ești un coach de nutriție profesionist. Răspunde structurat și util, în limba română.";
     } else if (plan === "EXPERT") {
       systemPrompt =
-        "Ești un expert de top în nutriție. Oferă răspunsuri detaliate, personalizate și strategice, în limba română.";
+        "Ești expert de top în nutriție. Răspunde detaliat și strategic, în limba română.";
     } else {
-      systemPrompt =
-        "Ești un asistent de nutriție. Răspunde în limba română.";
+      systemPrompt = "Ești asistent de nutriție. Răspunde în română.";
     }
 
-    // 3. Apel AI
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: systemPrompt + " Explică simplu și pe înțelesul oricui."
+          content: systemPrompt
         },
         {
           role: "user",
@@ -74,16 +77,17 @@ app.post("/chat", async (req, res) => {
 
     const reply = response.choices[0].message.content;
 
-    // 4. Trimitem răspunsul
     res.json({ reply });
 
   } catch (err) {
-    console.error(err);
+    console.error("EROARE:", err);
     res.status(500).json({ error: "Eroare server" });
   }
 });
 
-// Start server
-app.listen(3000, () => {
-  console.log("Serverul rulează pe portul 3000");
+// PORT corect pentru Railway
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`Serverul rulează pe portul ${PORT}`);
 });
