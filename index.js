@@ -106,6 +106,40 @@ app.post("/chat", authMiddleware, async (req, res) => {
       conversation_id = conv[0].id;
     }
 
+// ================== LIMITĂ ZILNICĂ ==================
+
+const today = new Date();
+today.setHours(0, 0, 0, 0);
+
+// luăm toate conversațiile userului
+const { data: conversations } = await supabase
+  .from("conversations")
+  .select("id")
+  .eq("user_id", user_id);
+
+// extragem id-urile
+const conversationIds = conversations.map(c => c.id);
+
+// numărăm mesajele de tip USER azi
+const { count } = await supabase
+  .from("messages")
+  .select("*", { count: "exact", head: true })
+  .in("conversation_id", conversationIds)
+  .eq("role", "user")
+  .gte("created_at", today.toISOString());
+
+// limite per plan
+let limit = 7;
+
+if (plan === "CORE") limit = 75;
+if (plan === "EXPERT") limit = 250;
+
+// verificare
+if (count >= limit) {
+  return res.status(403).json({
+    error: "Ai atins limita zilnică"
+  });
+}
     // ================== HISTORY ==================
     const { data: history } = await supabase
       .from("messages")
@@ -126,20 +160,21 @@ app.post("/chat", authMiddleware, async (req, res) => {
 
     const reply = response.choices[0].message.content;
 
-    // ================== SAVE ==================
-    await supabase.from("messages").insert([
-      {
-        conversation_id,
-        role: "user",
-        content: message
-      },
-      {
-        conversation_id,
-        role: "assistant",
-        content: reply
-      }
-    ]);
-
+   // ================== SAVE ==================
+await supabase.from("messages").insert([
+  {
+    user_id, 
+    conversation_id,
+    role: "user",
+    content: message
+  },
+  {
+    user_id, 
+    conversation_id,
+    role: "assistant",
+    content: reply
+  }
+]);
     // ================== RESPONSE ==================
     res.json({ reply });
 
