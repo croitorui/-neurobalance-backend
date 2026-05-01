@@ -21,7 +21,21 @@ async function authMiddleware(req, res, next) {
     return res.status(401).json({ error: "No token" });
   }
 
-  const { data, error } = await supabase.auth.getUser(token);
+  // creezi un client NOU cu tokenul userului
+  const supabaseUser = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_KEY,
+    {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    }
+  );
+
+  // fără token param!
+  const { data, error } = await supabaseUser.auth.getUser();
 
   if (error || !data?.user) {
     return res.status(401).json({ error: "Invalid token" });
@@ -30,7 +44,6 @@ async function authMiddleware(req, res, next) {
   req.user = data.user;
   next();
 }
-
 // ================== OPENAI ==================
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
