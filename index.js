@@ -33,18 +33,24 @@ app.post("/chat", async (req, res) => {
     }
 
     // Luăm planul
-    const { data, error } = await supabase
-      .from("subscriptions")
-      .select("plan")
-      .eq("user_id", user_id)
-      .eq("is_active", true)
-      .single();
+const { data, error } = await supabase
+  .from("subscriptions")
+  .select("plan")
+  .eq("user_id", user_id)
+  .eq("is_active", true);
 
-    if (error || !data) {
-      return res.status(500).json({ error: "Nu există abonament pentru acest user" });
-    }
+console.log("SUB DATA:", data);
+console.log("SUB ERROR:", error);
 
-    const plan = data.plan;
+if (error) {
+  return res.status(500).json({ error: "Eroare DB", details: error });
+}
+
+if (!data || data.length === 0) {
+  return res.status(400).json({ error: "Nu există abonament pentru acest user" });
+}
+
+const plan = data[0].plan;
 
     let systemPrompt = "";
 
