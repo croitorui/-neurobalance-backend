@@ -81,9 +81,48 @@ const plan = data[0].plan;
       ]
     });
 
-    const reply = response.choices[0].message.content;
+   const reply = response.choices[0].message.content;
 
-    res.json({ reply });
+// ================== NEW ==================
+
+// 1. găsim sau creăm conversația
+let { data: conv } = await supabase
+  .from("conversations")
+  .select("id")
+  .eq("user_id", user_id)
+  .limit(1);
+
+let conversation_id;
+
+if (!conv || conv.length === 0) {
+  const { data: newConv } = await supabase
+    .from("conversations")
+    .insert([{ user_id }])
+    .select();
+
+  conversation_id = newConv[0].id;
+} else {
+  conversation_id = conv[0].id;
+}
+
+// 2. salvăm mesajele
+await supabase.from("messages").insert([
+  {
+    conversation_id,
+    role: "user",
+    content: message
+  },
+  {
+    conversation_id,
+    role: "assistant",
+    content: reply
+  }
+]);
+
+// ================== PÂNĂ AICI ==================
+
+// 3. răspuns către client
+res.json({ reply });
 
   } catch (err) {
     console.error("EROARE:", err);
