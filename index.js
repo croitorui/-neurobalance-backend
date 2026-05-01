@@ -7,13 +7,11 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// ================== SUPABASE ==================
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 );
 
-// ================== AUTH ==================
 async function authMiddleware(req, res, next) {
   const token = req.headers.authorization?.split(" ")[1];
 
@@ -21,7 +19,6 @@ async function authMiddleware(req, res, next) {
     return res.status(401).json({ error: "No token" });
   }
 
-  // creezi un client NOU cu tokenul userului
   const supabaseUser = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_KEY,
@@ -34,7 +31,6 @@ async function authMiddleware(req, res, next) {
     }
   );
 
-  // fără token param!
   const { data, error } = await supabaseUser.auth.getUser();
 
   if (error || !data?.user) {
@@ -42,25 +38,26 @@ async function authMiddleware(req, res, next) {
   }
 
   req.user = data.user;
+  req.supabaseUser = supabaseUser;
+
   next();
 }
-// ================== OPENAI ==================
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-// ================== CHAT ==================
 app.post("/chat", authMiddleware, async (req, res) => {
   try {
     const user_id = req.user.id;
+    const supabaseUser = req.supabaseUser;
     const { message } = req.body;
 
     if (!message) {
       return res.status(400).json({ error: "Lipsește mesajul" });
     }
 
-    // ================== PLAN ==================
-    const { data: sub, error: subError } = await supabase
+    const { data: sub, error: subError } = await supabaseUser
       .from("subscriptions")
       .select("plan")
       .eq("user_id", user_id)
@@ -86,69 +83,71 @@ app.post("/chat", authMiddleware, async (req, res) => {
         "Ești expert de top în nutriție. Răspunde detaliat și strategic.";
     }
 
-    // ================== CONVERSATION ==================
-    let { data: conv } = await supabase
+    let { data: conv, error: convError } = await supabaseUser
       .from("conversations")
       .select("id")
       .eq("user_id", user_id)
       .limit(1);
 
+    if (convError) {
+      return res.status(500).json({ error: "Eroare conversații", details: convError });
+    }
+
     let conversation_id;
 
     if (!conv || conv.length === 0) {
-      const { data: newConv } = await supabase
+      const { data: newConv, error: newConvError } = await supabaseUser
         .from("conversations")
         .insert([{ user_id }])
-        .select();
+        .select("id")
+        .single();
 
-      conversation_id = newConv[0].id;
+      if (newConvError || !newConv) {
+        return res.status(500).json({ error: "Nu s-a putut crea conversația", details: newConvError });
+      }
+
+      conversation_id = newConv.id;
     } else {
       conversation_id = conv[0].id;
     }
 
-// ================== LIMITĂ ZILNICĂ ==================
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-const today = new Date();
-today.setHours(0, 0, 0, 0);
+    const { count, error: countError } = await supabaseUser
+      .from("messages")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user_id)
+      .eq("role", "user")
+      .gte("created_at", today.toISOString());
 
-// luăm toate conversațiile userului
-const { data: conversations } = await supabase
-  .from("conversations")
-  .select("id")
-  .eq("user_id", user_id);
+    if (countError) {
+      return res.status(500).json({ error: "Eroare limită mesaje", details: countError });
+    }
 
-// extragem id-urile
-const conversationIds = conversations.map(c => c.id);
+    let limit = 7;
+    if (plan === "CORE") limit = 75;
+    if (plan === "EXPERT") limit = 250;
 
-// numărăm mesajele de tip USER azi
-const { count } = await supabase
-  .from("messages")
-  .select("*", { count: "exact", head: true })
-  .in("conversation_id", conversationIds)
-  .eq("role", "user")
-  .gte("created_at", today.toISOString());
+    if ((count || 0) >= limit) {
+      return res.status(403).json({
+        error: "Ai atins limita zilnică",
+        limit,
+        used: count || 0
+      });
+    }
 
-// limite per plan
-let limit = 7;
-
-if (plan === "CORE") limit = 75;
-if (plan === "EXPERT") limit = 250;
-
-// verificare
-if (count >= limit) {
-  return res.status(403).json({
-    error: "Ai atins limita zilnică"
-  });
-}
-    // ================== HISTORY ==================
-    const { data: history } = await supabase
+    const { data: history, error: historyError } = await supabaseUser
       .from("messages")
       .select("role, content")
       .eq("conversation_id", conversation_id)
       .order("created_at", { ascending: true })
       .limit(10);
 
-    // ================== AI ==================
+    if (historyError) {
+      return res.status(500).json({ error: "Eroare istoric", details: historyError });
+    }
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -160,31 +159,38 @@ if (count >= limit) {
 
     const reply = response.choices[0].message.content;
 
-   // ================== SAVE ==================
-await supabase.from("messages").insert([
-  {
-    user_id, 
-    conversation_id,
-    role: "user",
-    content: message
-  },
-  {
-    user_id, 
-    conversation_id,
-    role: "assistant",
-    content: reply
-  }
-]);
-    // ================== RESPONSE ==================
-    res.json({ reply });
+    const { error: saveError } = await supabaseUser.from("messages").insert([
+      {
+        user_id,
+        conversation_id,
+        role: "user",
+        content: message
+      },
+      {
+        user_id,
+        conversation_id,
+        role: "assistant",
+        content: reply
+      }
+    ]);
 
+    if (saveError) {
+      return res.status(500).json({ error: "Eroare salvare mesaje", details: saveError });
+    }
+
+    res.json({
+      reply,
+      plan,
+      daily_limit: limit,
+      daily_used: (count || 0) + 1,
+      daily_remaining: Math.max(limit - ((count || 0) + 1), 0)
+    });
   } catch (err) {
     console.error("EROARE:", err);
     res.status(500).json({ error: "Eroare server" });
   }
 });
 
-// ================== SERVER ==================
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
