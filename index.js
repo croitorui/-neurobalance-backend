@@ -26,11 +26,20 @@ const openai = new OpenAI({
 // Endpoint chat
 app.post("/chat", async (req, res) => {
   try {
-    const { user_id, message } = req.body;
+   const token = req.headers.authorization?.split(" ")[1];
 
-    if (!user_id || !message) {
-      return res.status(400).json({ error: "Lipsește user_id sau mesajul" });
-    }
+if (!token) {
+  return res.status(401).json({ error: "No token" });
+}
+
+const decoded = jwt.decode(token);
+
+const user_id = decoded.sub;
+const { message } = req.body;
+
+if (!message) {
+  return res.status(400).json({ error: "Lipsește mesajul" });
+}
 
     // Luăm planul
 const { data, error } = await supabase
