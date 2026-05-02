@@ -400,3 +400,9 @@ app.get("/messages/:id", authMiddleware, async (req, res) => {
 
   res.json({ messages: data });
 });
+
+const PORT = process.env.PORT || 3001;
+
+app.listen(PORT, () => {
+  console.log("🚀 Server running on port", PORT);
+});
