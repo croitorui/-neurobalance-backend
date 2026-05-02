@@ -270,7 +270,7 @@ app.post("/create-checkout-session", authMiddleware, async (req, res) => {
           quantity: 1,
         },
       ],
-      success_url: `${process.env.FRONTEND_URL}/success`,
+      success_url: `${process.env.FRONTEND_URL}/success?plan=${plan}`,
       cancel_url: `${process.env.FRONTEND_URL}/cancel`,
       metadata: {
         user_id: req.user.id,
