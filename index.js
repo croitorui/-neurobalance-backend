@@ -134,6 +134,7 @@ const plan = sub?.plan || "FREE";
     let { data: conv, error: convError } = await supabaseUser
       .from("conversations")
       .select("id")
+      .eq("user_id", user_id)
       .order("created_at", { ascending: false })
       .limit(1);
 
@@ -192,6 +193,7 @@ const plan = sub?.plan || "FREE";
       .from("messages")
       .select("role, content")
       .eq("conversation_id", conversation_id)
+      .eq("user_id", user_id)
       .order("created_at", { ascending: true })
       .limit(10);
 
@@ -385,7 +387,7 @@ app.get("/messages/:id", authMiddleware, async (req, res) => {
   }
 
   // doar dacă e owner
-  const { data, error } = await supabase
+  const { data, error } = await supabaseUser
     .from("messages")
     .select("role, content")
     .eq("conversation_id", id)
