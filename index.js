@@ -105,18 +105,18 @@ app.post("/chat", authMiddleware, async (req, res) => {
       return res.status(400).json({ error: "Lipsește mesajul" });
     }
 
-    const { data: sub, error: subError } = await supabaseUser
-      .from("subscriptions")
-      .select("plan")
-      .eq("user_id", user_id)
-      .eq("is_active", true)
-      .single();
+  const { data: sub, error: subError } = await supabase
+  .from("subscriptions")
+  .select("plan")
+  .eq("user_id", user_id)
+  .eq("is_active", true)
+  .maybeSingle();
 
-    if (subError || !sub) {
-      return res.status(400).json({ error: "Nu există abonament" });
-    }
+if (subError) {
+  console.error("Subscription error:", subError);
+}
 
-    const plan = sub.plan;
+const plan = sub?.plan || "FREE";
 
     let systemPrompt = "Ești asistent de nutriție.";
 
@@ -305,20 +305,18 @@ app.get("/history", authMiddleware, async (req, res) => {
       });
     }
 
-    const { data: sub, error: subError } = await supabaseUser
-      .from("subscriptions")
-      .select("plan")
-      .eq("user_id", user_id)
-      .eq("is_active", true)
-      .single();
+   const { data: sub, error: subError } = await supabase
+  .from("subscriptions")
+  .select("plan")
+  .eq("user_id", user_id)
+  .eq("is_active", true)
+  .maybeSingle();
 
-    if (subError || !sub) {
-      return res.status(400).json({
-        error: "Nu există abonament",
-      });
-    }
+if (subError) {
+  console.error("History subscription error:", subError);
+}
 
-    const plan = String(sub.plan || "FREE").toUpperCase();
+const plan = String(sub?.plan || "FREE").toUpperCase();
 
     let dailyLimit = 7;
 
