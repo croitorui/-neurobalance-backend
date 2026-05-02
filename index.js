@@ -2,6 +2,7 @@ import express from "express";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import cors from "cors";
+import Stripe from "stripe";
 
 const app = express();
 app.use(express.json());
@@ -46,6 +47,8 @@ async function authMiddleware(req, res, next) {
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 app.post("/chat", authMiddleware, async (req, res) => {
   try {
@@ -195,6 +198,45 @@ res.json({
   } catch (err) {
     console.error("EROARE:", err);
     res.status(500).json({ error: "Eroare server" });
+  }
+});
+
+// ================== STRIPE CHECKOUT ==================
+app.post("/create-checkout-session", authMiddleware, async (req, res) => {
+  try {
+    const { plan } = req.body;
+
+    let priceId;
+
+    if (plan === "CORE") {
+      priceId = process.env.STRIPE_CORE_PRICE_ID;
+    } else if (plan === "EXPERT") {
+      priceId = process.env.STRIPE_EXPERT_PRICE_ID;
+    } else {
+      return res.status(400).json({ error: "Plan invalid" });
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ],
+      success_url: `${process.env.FRONTEND_URL}/success`,
+      cancel_url: `${process.env.FRONTEND_URL}/cancel`,
+      metadata: {
+        user_id: req.user.id,
+        plan: plan,
+      },
+    });
+
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error("Stripe error:", err);
+    res.status(500).json({ error: "Stripe error" });
   }
 });
 
