@@ -174,8 +174,8 @@ app.post("/chat", authMiddleware, async (req, res) => {
     }
 
     let limit = 7;
-    if (plan === "CORE") limit = 5;
-    if (plan === "EXPERT") limit = 5;
+    if (plan === "CORE") limit = 12;
+    if (plan === "EXPERT") limit = 17;
 
    if ((count || 0) >= limit) {
   return res.status(403).json({
