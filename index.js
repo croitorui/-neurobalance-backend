@@ -5,6 +5,48 @@ import cors from "cors";
 import Stripe from "stripe";
 
 const app = express();
+
+// IMPORTANT: DOAR pentru webhook
+app.post(
+  "/stripe-webhook",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    const sig = req.headers["stripe-signature"];
+
+    let event;
+
+    try {
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+    } catch (err) {
+      console.error("Webhook error:", err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object;
+
+      const user_id = session.metadata.user_id;
+      const plan = session.metadata.plan;
+
+      console.log("💰 Payment success:", user_id, plan);
+
+      await supabase
+        .from("subscriptions")
+        .update({
+          plan: plan,
+          is_active: true,
+        })
+        .eq("user_id", user_id);
+    }
+
+    res.json({ received: true });
+  }
+);
+
 app.use(express.json());
 app.use(cors());
 
@@ -234,10 +276,11 @@ app.post("/create-checkout-session", authMiddleware, async (req, res) => {
     });
 
     res.json({ url: session.url });
-  } catch (err) {
-    console.error("Stripe error:", err);
-    res.status(500).json({ error: "Stripe error" });
-  }
+  } 
+catch (err) {
+  console.error("STRIPE REAL ERROR:", err);
+  res.status(500).json({ error: err.message });
+}
 });
 
 // ================== HISTORY ==================
