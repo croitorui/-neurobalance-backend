@@ -129,13 +129,16 @@ app.post("/chat", authMiddleware, async (req, res) => {
     if (plan === "CORE") limit = 75;
     if (plan === "EXPERT") limit = 250;
 
-    if ((count || 0) >= limit) {
-      return res.status(403).json({
-        error: "Ai atins limita zilnică",
-        limit,
-        used: count || 0
-      });
-    }
+   if ((count || 0) >= limit) {
+  return res.status(403).json({
+    error: "Ai atins limita zilnică",
+    limit_reached: true,
+    plan,
+    daily_limit: limit,
+    daily_used: count || 0,
+    daily_remaining: 0,
+  });
+}
 
     const { data: history, error: historyError } = await supabaseUser
       .from("messages")
@@ -178,13 +181,17 @@ app.post("/chat", authMiddleware, async (req, res) => {
       return res.status(500).json({ error: "Eroare salvare mesaje", details: saveError });
     }
 
-    res.json({
-      reply,
-      plan,
-      daily_limit: limit,
-      daily_used: (count || 0) + 1,
-      daily_remaining: Math.max(limit - ((count || 0) + 1), 0)
-    });
+  const nextUsed = (count || 0) + 1;
+
+res.json({
+  reply,
+  plan,
+  daily_limit: limit,
+  daily_used: nextUsed,
+  daily_remaining: Math.max(limit - nextUsed, 0),
+  limit_reached: nextUsed >= limit,
+});
+
   } catch (err) {
     console.error("EROARE:", err);
     res.status(500).json({ error: "Eroare server" });
@@ -193,19 +200,85 @@ app.post("/chat", authMiddleware, async (req, res) => {
 
 // ================== HISTORY ==================
 app.get("/history", authMiddleware, async (req, res) => {
-  const user_id = req.user.id;
+  try {
+    const user_id = req.user.id;
+    const supabaseUser = req.supabaseUser;
 
-  const { data, error } = await supabase
-    .from("conversations")
-    .select("id, created_at")
-    .eq("user_id", user_id)
-    .order("created_at", { ascending: false });
+    const { data: conversations, error: conversationsError } = await supabaseUser
+      .from("conversations")
+      .select("id, created_at")
+      .eq("user_id", user_id)
+      .order("created_at", { ascending: false });
 
-  if (error) {
-    return res.status(500).json({ error });
+    if (conversationsError) {
+      return res.status(500).json({
+        error: "Eroare conversații",
+        details: conversationsError,
+      });
+    }
+
+    const { data: sub, error: subError } = await supabaseUser
+      .from("subscriptions")
+      .select("plan")
+      .eq("user_id", user_id)
+      .eq("is_active", true)
+      .single();
+
+    if (subError || !sub) {
+      return res.status(400).json({
+        error: "Nu există abonament",
+      });
+    }
+
+    const plan = String(sub.plan || "FREE").toUpperCase();
+
+    let dailyLimit = 7;
+
+    if (plan === "CORE") {
+      dailyLimit = 75;
+    }
+
+    if (plan === "EXPERT") {
+      dailyLimit = 250;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const { count, error: countError } = await supabaseUser
+      .from("messages")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user_id)
+      .eq("role", "user")
+      .gte("created_at", today.toISOString());
+
+    if (countError) {
+      return res.status(500).json({
+        error: "Eroare limită mesaje",
+        details: countError,
+      });
+    }
+
+    const dailyUsed = count || 0;
+    const dailyRemaining = Math.max(dailyLimit - dailyUsed, 0);
+    const limitReached = dailyUsed >= dailyLimit;
+
+    return res.json({
+      conversations: conversations || [],
+      plan,
+      daily_used: dailyUsed,
+      daily_limit: dailyLimit,
+      daily_remaining: dailyRemaining,
+      limit_reached: limitReached,
+      email: req.user.email,
+    });
+  } catch (err) {
+    console.error("History error:", err);
+
+    return res.status(500).json({
+      error: "Eroare server history",
+    });
   }
-
-  res.json({ conversations: data });
 });
 
 // ================== MESSAGES ==================
