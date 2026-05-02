@@ -323,11 +323,11 @@ app.get("/history", authMiddleware, async (req, res) => {
     let dailyLimit = 7;
 
     if (plan === "CORE") {
-      dailyLimit = 75;
+      dailyLimit = 12;
     }
 
     if (plan === "EXPERT") {
-      dailyLimit = 250;
+      dailyLimit = 17;
     }
 
     const today = new Date();
