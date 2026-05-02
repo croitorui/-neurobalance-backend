@@ -375,7 +375,7 @@ app.get("/messages/:id", authMiddleware, async (req, res) => {
   const user_id = req.user.id;
 
   // verifică dacă conversația aparține userului
-  const { data: conv, error: convError } = await supabase
+  const { data: conv, error: convError } = await supabaseUser
     .from("conversations")
     .select("id")
     .eq("id", id)
