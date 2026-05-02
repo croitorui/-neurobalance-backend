@@ -1,0 +1,137 @@
+[33mcommit 3ac9cdfae0830e882caf1f0ee62fd46264f89fd7[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Sat May 2 12:30:01 2026 +0200
+
+    clean commit (no env)
+
+[33mcommit 5656fe7d585da852cd8bca4e7a1df64f965f0605[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Sat May 2 12:26:09 2026 +0200
+
+    remove env
+
+[33mcommit df99f669933834a033d5e3f6dc6080fc927f5b2c[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Sat May 2 12:21:38 2026 +0200
+
+    fix server final
+
+[33mcommit 5ac8305495580e3a3aec4387c8ad8ccef9413fb2[m[33m ([m[1;31morigin/main[m[33m)[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Sat May 2 12:13:09 2026 +0200
+
+    fix server final
+
+[33mcommit 1f3ca1c3851d01380ad8899314e52001fc4f0e1c[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Sat May 2 10:49:13 2026 +0200
+
+    fix server final
+
+[33mcommit 3009392c28cf99139d3401376084b59e6e41adc2[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Fri May 1 15:33:49 2026 +0200
+
+    fix server final
+
+[33mcommit 4194da6ac9c772efb3f807f90424e156b08b1805[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Fri May 1 14:28:01 2026 +0200
+
+    fix server final
+
+[33mcommit d201437bc2338fe223a26cb90694868ccba7ac72[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Fri May 1 14:14:49 2026 +0200
+
+    fix server final
+
+[33mcommit e9f79f5f9552fb37eabc0d36f1ccce4452917476[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Fri May 1 13:50:52 2026 +0200
+
+    fix server final
+
+[33mcommit ecee6468aa3a1abf96754392709c86afd974bc68[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Fri May 1 13:30:41 2026 +0200
+
+    fix server final
+
+[33mcommit 9497e84406cfb0f63947016c3fce33dbb363bf8e[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Fri May 1 13:23:41 2026 +0200
+
+    fix server final
+
+[33mcommit a84d56d36e09c91c04bcccbcb30b05591ab35c93[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Fri May 1 12:54:04 2026 +0200
+
+    fix server final
+
+[33mcommit f6336ace62d793fc24dd26a4dc25d19878e3c468[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Fri May 1 12:47:13 2026 +0200
+
+    fix server final
+
+[33mcommit 656f148da44bff428dd518eefb72c24c33e63a79[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Fri May 1 12:42:59 2026 +0200
+
+    fix jwt
+
+[33mcommit f481e64257620546fa1bf18465e682591169ede6[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Fri May 1 12:16:34 2026 +0200
+
+    fix server final
+
+[33mcommit 3ff76152ac549214d493efce1eaf60dab3aeb87b[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Fri May 1 11:42:49 2026 +0200
+
+    fix server final
+
+[33mcommit f8ac744003e7e890f4c1a4b90a3380b704d93b4e[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Fri May 1 11:30:16 2026 +0200
+
+    fix server final
+
+[33mcommit ba333acb9b8d6b574548c5c8e3a7f861237ec6cb[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Fri May 1 10:43:06 2026 +0200
+
+    fix server final
+
+[33mcommit 2f3687a96c1be44a61c6ac159eb8bbe4bd4fd2a7[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Fri May 1 10:37:01 2026 +0200
+
+    fix server final
+
+[33mcommit fff742d2d9d07827d87874200473d1e406f3a3f1[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Fri May 1 10:17:35 2026 +0200
+
+    fix start file
+
+[33mcommit 65ad17721e7a572dbc4a0cfdd9aaf8519f3dd141[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Fri May 1 10:13:26 2026 +0200
+
+    fix package json
+
+[33mcommit 7dbfda0f85d605ef20d75b4e0a68a14bac8c368d[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Fri May 1 10:09:19 2026 +0200
+
+    rename to index.js
+
+[33mcommit 48fb25a4e3c57227904bd7d8bde809445e7a0068[m
+Author: Croitoru Ionela <croitoru.i@gmail.com>
+Date:   Fri May 1 09:33:45 2026 +0200
+
+    backend ready
