@@ -373,6 +373,7 @@ const plan = String(sub?.plan || "FREE").toUpperCase();
 app.get("/messages/:id", authMiddleware, async (req, res) => {
   const { id } = req.params;
   const user_id = req.user.id;
+  const supabaseUser = req.supabaseUser;
 
   // verifică dacă conversația aparține userului
   const { data: conv, error: convError } = await supabaseUser
