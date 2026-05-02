@@ -201,46 +201,41 @@ const plan = sub?.plan || "FREE";
       return res.status(500).json({ error: "Eroare istoric", details: historyError });
     }
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...(history || []),
-        { role: "user", content: message }
-      ]
-    });
-
-    const reply = response.choices[0].message.content;
-
-    const { error: saveError } = await supabaseUser.from("messages").insert([
-      {
-        user_id,
-        conversation_id,
-        role: "user",
-        content: message
-      },
-      {
-        user_id,
-        conversation_id,
-        role: "assistant",
-        content: reply
-      }
-    ]);
-
-    if (saveError) {
-      return res.status(500).json({ error: "Eroare salvare mesaje", details: saveError });
-    }
-
-  const nextUsed = (count || 0) + 1;
-
-res.json({
-  reply,
-  plan,
-  daily_limit: limit,
-  daily_used: nextUsed,
-  daily_remaining: Math.max(limit - nextUsed, 0),
-  limit_reached: nextUsed >= limit,
+   const stream = await openai.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: [
+    { role: "system", content: systemPrompt },
+    ...(history || []),
+    { role: "user", content: message }
+  ],
+  stream: true,
 });
+
+res.setHeader("Content-Type", "text/plain");
+
+let fullReply = "";
+
+for await (const chunk of stream) {
+  const content = chunk.choices[0]?.delta?.content || "";
+  fullReply += content;
+  res.write(content);
+}
+res.end();
+
+await supabaseUser.from("messages").insert([
+  {
+    user_id,
+    conversation_id,
+    role: "user",
+    content: message
+  },
+  {
+    user_id,
+    conversation_id,
+    role: "assistant",
+    content: fullReply
+  }
+]);
 
   } catch (err) {
     console.error("EROARE:", err);
