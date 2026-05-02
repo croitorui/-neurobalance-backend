@@ -134,7 +134,7 @@ const plan = sub?.plan || "FREE";
     let { data: conv, error: convError } = await supabaseUser
       .from("conversations")
       .select("id")
-      .eq("user_id", user_id)
+      .order("created_at", { ascending: false })
       .limit(1);
 
     if (convError) {
@@ -370,11 +370,26 @@ const plan = String(sub?.plan || "FREE").toUpperCase();
 // ================== MESSAGES ==================
 app.get("/messages/:id", authMiddleware, async (req, res) => {
   const { id } = req.params;
+  const user_id = req.user.id;
 
+  // verifică dacă conversația aparține userului
+  const { data: conv, error: convError } = await supabase
+    .from("conversations")
+    .select("id")
+    .eq("id", id)
+    .eq("user_id", user_id)
+    .single();
+
+  if (convError || !conv) {
+    return res.status(403).json({ error: "Acces interzis" });
+  }
+
+  // doar dacă e owner
   const { data, error } = await supabase
     .from("messages")
     .select("role, content")
     .eq("conversation_id", id)
+    .eq("user_id", user_id) //  EXTRA SAFE
     .order("created_at", { ascending: true });
 
   if (error) {
@@ -382,10 +397,4 @@ app.get("/messages/:id", authMiddleware, async (req, res) => {
   }
 
   res.json({ messages: data });
-});
-
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log(`Serverul rulează pe portul ${PORT}`);
 });
