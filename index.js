@@ -121,13 +121,124 @@ Returnează DOAR JSON:
   }
 }
 
+
+
 app.post("/chat", authMiddleware, async (req, res) => {
   try {
     const user_id = req.user.id;
     const supabaseUser = req.supabaseUser;
-    const { message } = req.body;
+  const { message, image_url } = req.body;
 
-    const { language, translated } = await detectAndTranslate(message);
+  // ================= IMAGE CHECK =================
+if (image_url) {
+  console.log("📸 IMAGE DETECTED");
+
+  let imageCheck = {
+    is_food: false,
+    confidence: 0
+  };
+
+  try {
+    const checkRes = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `
+Analizezi o imagine.
+
+Returnează DOAR JSON:
+
+{
+  "is_food": true/false,
+  "confidence": 0-100
+}
+
+TRUE doar dacă:
+- mâncare
+- băutură
+- ingrediente
+- farfurie cu ceva comestibil
+
+FALSE pentru:
+- oameni fără mâncare
+- selfie
+- obiecte
+- peisaje
+- orice non-food
+`
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "image_url",
+              image_url: { url: image_url }
+            }
+          ]
+        }
+      ],
+      temperature: 0
+    });
+
+    imageCheck = JSON.parse(checkRes.choices[0].message.content);
+
+  } catch (err) {
+    console.error("Image check error:", err);
+  }
+
+  console.log("IMAGE CHECK:", imageCheck);
+
+  // HARD BLOCK
+  if (!imageCheck.is_food || imageCheck.confidence < 60) {
+    return res.json({
+      reply: "Această imagine nu este relevantă pentru nutriție."
+    });
+  }
+
+  // ================= FOOD ANALYSIS =================
+  const analysisRes = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: `
+Ești nutriționist.
+
+Analizează imaginea și spune:
+- ce este
+- estimare calorii
+- protein / carbs / fat
+- dacă este sănătos sau nu
+
+Fii realist.
+`
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "image_url",
+            image_url: { url: image_url }
+          }
+        ]
+      }
+    ]
+  });
+
+  const result = analysisRes.choices[0].message.content;
+
+  return res.json({ reply: result });
+}
+
+    let language = "ro";
+let translated = message || "";
+
+if (message) {
+  const result = await detectAndTranslate(message);
+  language = result.language;
+  translated = result.translated;
+}
 
     console.log("LANG:", language);
     console.log("TRANSLATED:", translated);
@@ -168,10 +279,9 @@ const { intent, eat_out } = analysis;
 
 console.log("ANALYSIS:", analysis);
 
-    if (!message) {
-      return res.status(400).json({ error: "Lipsește mesajul" });
-    }
-
+  if (!message && !image_url) {
+  return res.status(400).json({ error: "Lipsește mesaj sau imagine" });
+}
     
 
     console.log("MESSAGE:", message);
