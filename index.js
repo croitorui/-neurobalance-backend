@@ -131,25 +131,47 @@ app.post("/chat", authMiddleware, async (req, res) => {
     console.log("LANG:", language);
     console.log("TRANSLATED:", translated);
 
+    const analysisRes = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `
+      Analizează mesajul userului.
+
+      Returnează DOAR JSON:
+
+      {
+        "language": "ro/en/de/...",
+        "intent": "dessert | pizza | food | general",
+        "eat_out": true/false
+      }
+      `
+          },
+          { role: "user", content: message }
+        ],
+        temperature: 0
+      });
+
+      let analysis = {
+        language: "unknown",
+        intent: "general",
+        eat_out: false
+      };
+
+try {
+  analysis = JSON.parse(analysisRes.choices[0].message.content);
+} catch {}
+
+const { intent, eat_out } = analysis;
+
+console.log("ANALYSIS:", analysis);
+
     if (!message) {
       return res.status(400).json({ error: "Lipsește mesajul" });
     }
 
-    const lowerMsg = translated.toLowerCase();
-
-    const wantsSweet =
-  lowerMsg.includes("dessert") ||
-  lowerMsg.includes("sweet") ||
-  lowerMsg.includes("cake") ||
-  lowerMsg.includes("ice cream");
-
-const wantsPizza =
-  lowerMsg.includes("pizza");
-
-const wantsOut =
-  lowerMsg.includes("restaurant") ||
-  lowerMsg.includes("eat") ||
-  lowerMsg.includes("out");
+    
 
     console.log("MESSAGE:", message);
     console.log("LOWER:", lowerMsg);
@@ -186,11 +208,20 @@ const plan = sub?.plan || "FREE";
 
     // Google places
 
-     if ((wantsSweet || wantsPizza) && wantsOut && req.body.location) {
+   if (
+      (intent === "dessert" || intent === "pizza") &&
+      eat_out &&
+      req.body.location
+    ) {
           const { lat, lng } = req.body.location;
 
-          const type = wantsSweet ? "bakery" : "restaurant";
-          const keyword = wantsSweet ? "cake" : "pizza";
+        const type =
+          intent === "dessert" ? "bakery" : "restaurant";
+
+        const keyword =
+          intent === "dessert"
+            ? "dessert cafe ice cream"
+            : "pizza";
 
           const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=3000&type=${type}&keyword=${keyword}&key=${process.env.GOOGLE_PLACES_KEY}`;
 
