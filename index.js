@@ -143,7 +143,7 @@ const plan = sub?.plan || "FREE";
 
     // Google places
 
-        if ((wantsSweet || wantsPizza) && req.body.location && plan !== "FREE") {
+        if ((wantsSweet || wantsPizza) && req.body.location) {
           const { lat, lng } = req.body.location;
 
           const keyword = wantsSweet ? "bakery" : "pizza";
