@@ -254,9 +254,27 @@ Fii realist.
     ]
   });
 
-  const result = analysisRes.choices[0].message.content;
+const result = analysisRes.choices[0].message.content;
 
-  return res.json({ reply: result });
+// NU return aici
+await supabaseUser.from("messages").insert([
+  {
+    user_id,
+    conversation_id,
+    role: "user",
+    content: finalImageUrl,
+    type: "image"
+  },
+  {
+    user_id,
+    conversation_id,
+    role: "assistant",
+    content: result,
+    type: "text"
+  }
+]);
+
+return res.json({ reply: result });
 }
 
     let language = "ro";
@@ -606,7 +624,7 @@ Răspunde în limba: ${language}
   messages: [
     { role: "system", content: systemPrompt },
     ...(history || []),
-    { role: "user", content: message || "Analizează contextul." }
+   { role: "user", content: message || finalImageUrl || "Analizează contextul." }
   ],
   stream: true,
 });
@@ -622,19 +640,20 @@ for await (const chunk of stream) {
 }
 res.end();
 
+const userContent = finalImageUrl || message;
 await supabaseUser.from("messages").insert([
   {
     user_id,
     conversation_id,
     role: "user",
-    content: message || finalImageUrl,
+    content: userContent,
     type: finalImageUrl ? "image" : "text"
   },
   {
     user_id,
     conversation_id,
     role: "assistant",
-    content: fullReply,
+    content: req.aiReply || fullReply,
     type: "text"
   }
 ]);
