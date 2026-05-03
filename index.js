@@ -100,16 +100,31 @@ app.post("/chat", authMiddleware, async (req, res) => {
     const user_id = req.user.id;
     const supabaseUser = req.supabaseUser;
     const { message } = req.body;
+    
+    console.log("MESSAGE:", message);
+    console.log("LOWER:", message.toLowerCase());
+    console.log("WANTS SWEET:", wantsSweet);
+    console.log("LOCATION:", req.body.location);
 
     // New
     const lowerMsg = message.toLowerCase();
 
-    const wantsSweet =
-      lowerMsg.includes("dulce") ||
-      lowerMsg.includes("desert");
+const wantsSweet =
+  lowerMsg.includes("dulce") ||
+  lowerMsg.includes("desert") ||
+  lowerMsg.includes("pofta") ||
+  lowerMsg.includes("ceva bun") ||
+  lowerMsg.includes("ceva dulce");
 
-    const wantsPizza =
-      lowerMsg.includes("pizza");
+const wantsPizza =
+  lowerMsg.includes("pizza") ||
+  lowerMsg.includes("mancare");
+
+const wantsOut =
+  lowerMsg.includes("oras") ||
+  lowerMsg.includes("în oraș") ||
+  lowerMsg.includes("afara") ||
+  lowerMsg.includes("restaurant");
 
         if (!message) {
           return res.status(400).json({ error: "Lipsește mesajul" });
@@ -143,7 +158,7 @@ const plan = sub?.plan || "FREE";
 
     // Google places
 
-        if ((wantsSweet || wantsPizza) && req.body.location) {
+        if ((wantsSweet || wantsPizza) && wantsOut && req.body.location) {
           const { lat, lng } = req.body.location;
 
           const keyword = wantsSweet ? "bakery" : "pizza";
