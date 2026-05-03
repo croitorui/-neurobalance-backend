@@ -127,59 +127,62 @@ app.post("/chat", authMiddleware, async (req, res) => {
   try {
     const user_id = req.user.id;
     const supabaseUser = req.supabaseUser;
-  const { message, image_url } = req.body;
+  const { message, image_url, type } = req.body;
+
+const finalImageUrl = image_url || (type === "image" ? message : null);
 
   // ================= IMAGE CHECK =================
-if (image_url) {
+if (finalImageUrl) {
   console.log("📸 IMAGE DETECTED");
 
-  let imageCheck = {
-    is_food: false,
-    confidence: 0
-  };
+let imageCheck = {
+  category: "other",
+  confidence: 0
+};
 
   try {
-    const checkRes = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `
-Analizezi o imagine.
+   const checkRes = await openai.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: [
+    {
+      role: "system",
+      content: `
+Analizezi o imagine pentru o aplicație de nutriție și fitness.
 
 Returnează DOAR JSON:
 
 {
-  "is_food": true/false,
+  "category": "food | hydration | fitness | body | supplement | other",
   "confidence": 0-100
 }
 
-TRUE doar dacă:
-- mâncare
-- băutură
-- ingrediente
-- farfurie cu ceva comestibil
+Reguli de clasificare:
 
-FALSE pentru:
-- oameni fără mâncare
-- selfie
-- obiecte
-- peisaje
-- orice non-food
+- food = mâncare, mese, ingrediente, fructe, legume, semințe
+- hydration = apă, lichide, băuturi
+- fitness = exerciții fizice, sală, antrenamente, yoga
+- body = corp uman, anatomie, digestie, sistem nervos
+- supplement = vitamine, proteine, suplimente alimentare
+- other = orice fără legătură cu nutriția, sănătatea sau corpul
+
+IMPORTANT:
+- Alege o singură categorie
+- Nu folosi TRUE/FALSE
+- Răspunde strict JSON valid
 `
-        },
+    },
+    {
+      role: "user",
+      content: [
         {
-          role: "user",
-          content: [
-            {
-              type: "image_url",
-              image_url: { url: image_url }
-            }
-          ]
+          type: "image_url",
+          image_url: { url: finalImageUrl }
         }
-      ],
-      temperature: 0
-    });
+      ]
+    }
+  ],
+  temperature: 0
+});
 
     imageCheck = JSON.parse(checkRes.choices[0].message.content);
 
@@ -190,11 +193,11 @@ FALSE pentru:
   console.log("IMAGE CHECK:", imageCheck);
 
   // HARD BLOCK
-  if (!imageCheck.is_food || imageCheck.confidence < 60) {
-    return res.json({
-      reply: "Această imagine nu este relevantă pentru nutriție."
-    });
-  }
+if (imageCheck.category === "other" || imageCheck.confidence < 40) {
+  return res.json({
+    reply: "Imaginea nu este relevantă pentru nutriție sau fitness."
+  });
+}
 
   // ================= FOOD ANALYSIS =================
   const analysisRes = await openai.chat.completions.create({
@@ -219,7 +222,7 @@ Fii realist.
         content: [
           {
             type: "image_url",
-            image_url: { url: image_url }
+            image_url: { url: finalImageUrl }
           }
         ]
       }
@@ -234,7 +237,7 @@ Fii realist.
     let language = "ro";
 let translated = message || "";
 
-if (message) {
+if (message && type !== "image") {
   const result = await detectAndTranslate(message);
   language = result.language;
   translated = result.translated;
@@ -279,7 +282,7 @@ const { intent, eat_out } = analysis;
 
 console.log("ANALYSIS:", analysis);
 
-  if (!message && !image_url) {
+  if (!message && !finalImageUrl){
   return res.status(400).json({ error: "Lipsește mesaj sau imagine" });
 }
     
@@ -575,7 +578,7 @@ Răspunde în limba: ${language}
   messages: [
     { role: "system", content: systemPrompt },
     ...(history || []),
-    { role: "user", content: message }
+    { role: "user", content: message || "Analizează contextul." }
   ],
   stream: true,
 });
