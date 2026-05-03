@@ -161,10 +161,10 @@ const plan = sub?.plan || "FREE";
 
     // Google places
 
-       if ((wantsSweet || wantsPizza) && wantsOut && req.body.location) {
+      if ((wantsSweet || wantsPizza) && req.body.location) {
           const { lat, lng } = req.body.location;
 
-          const keyword = wantsSweet ? "bakery" : "pizza";
+          const keyword = wantsSweet ? "dessert OR cafe OR ice cream" : "pizza";
 
           const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=2000&keyword=${keyword}&key=${process.env.GOOGLE_PLACES_KEY}`;
 
