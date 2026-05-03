@@ -101,8 +101,6 @@ app.post("/chat", authMiddleware, async (req, res) => {
     const supabaseUser = req.supabaseUser;
     const { message } = req.body;
 
-    const { message } = req.body;
-
     // New
     const lowerMsg = message.toLowerCase();
 
