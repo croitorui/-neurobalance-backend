@@ -193,7 +193,9 @@ IMPORTANT:
   console.log("IMAGE CHECK:", imageCheck);
 
   // HARD BLOCK
-if (imageCheck.category === "other" || imageCheck.confidence < 40) {
+const allowedCategories = ["food", "hydration", "fitness", "body", "supplement"];
+
+if (!allowedCategories.includes(imageCheck.category) && imageCheck.confidence < 60) {
   return res.json({
     reply: "Imaginea nu este relevantă pentru nutriție sau fitness."
   });
@@ -599,13 +601,15 @@ await supabaseUser.from("messages").insert([
     user_id,
     conversation_id,
     role: "user",
-    content: message
+    content: message || finalImageUrl,
+    type: finalImageUrl ? "image" : "text"
   },
   {
     user_id,
     conversation_id,
     role: "assistant",
-    content: fullReply
+    content: fullReply,
+    type: "text"
   }
 ]);
 
