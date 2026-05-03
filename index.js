@@ -6,6 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import cors from "cors";
 import Stripe from "stripe";
+import fetch from "node-fetch";
 
 const app = express();
 
@@ -174,10 +175,9 @@ console.log("ANALYSIS:", analysis);
     
 
     console.log("MESSAGE:", message);
-    console.log("LOWER:", lowerMsg);
-    console.log("WANTS SWEET:", wantsSweet);
-    console.log("WANTS PIZZA:", wantsPizza);
-    console.log("WANTS OUT:", wantsOut);
+    console.log("ANALYSIS:", analysis);
+    console.log("INTENT:", intent);
+    console.log("EAT OUT:", eat_out);
     console.log("LOCATION:", req.body.location);
 
   const { data: sub, error: subError } = await supabase
@@ -208,11 +208,11 @@ const plan = sub?.plan || "FREE";
 
     // Google places
 
-   if (
+      if (
       (intent === "dessert" || intent === "pizza") &&
-      eat_out &&
       req.body.location
-    ) {
+    ) 
+{
           const { lat, lng } = req.body.location;
 
         const type =
@@ -227,6 +227,10 @@ const plan = sub?.plan || "FREE";
 
           const response = await fetch(url);
           const data = await response.json();
+
+          if (data.status !== "OK") {
+              console.error("GOOGLE ERROR:", data);
+            }
 
           console.log("GOOGLE STATUS:", data.status);
             console.log("GOOGLE RESULTS:", data.results?.length);
