@@ -206,34 +206,24 @@ const plan = sub?.plan || "FREE";
         "Ești expert de top în nutriție. Răspunde detaliat și strategic.";
     }
 
-    // Google places
-
    // Google places
 if (req.body.location && eat_out === true) {
   console.log("ENTER GOOGLE BLOCK");
 
   const { lat, lng } = req.body.location;
 
-  let searchQueries;
-
-  switch (intent) {
-    case "dessert":
-      searchQueries = ["dessert", "ice cream", "cake", "pastry", "gelato"];
-      break;
-    case "pizza":
-      searchQueries = ["pizza"];
-      break;
-    case "food":
-      searchQueries = ["restaurant", "food"];
-      break;
-    default:
-      searchQueries = ["restaurant"];
-  }
+const types = [
+  "restaurant",
+  "cafe",
+  "bar",
+  "bakery",
+  "meal_takeaway"
+];
 
   let allPlaces = [];
 
-  for (const q of searchQueries) {
-    const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=5000&type=restaurant&keyword=${encodeURIComponent(q)}&key=${process.env.GOOGLE_PLACES_KEY}`;
+  for (const type of types) {
+   const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=5000&type=${type}&key=${process.env.GOOGLE_PLACES_KEY}`;
 
     try {
       const response = await fetch(url);
@@ -276,10 +266,24 @@ if (req.body.location && eat_out === true) {
     new Map(allPlaces.map(p => [p.place_id, p])).values()
   );
 
+  const categorized = {
+  restaurants: [],
+  cafes: [],
+  bars: [],
+  bakeries: [],
+};
+
+for (const p of uniquePlaces) {
+  if (p.types.includes("restaurant")) categorized.restaurants.push(p);
+  if (p.types.includes("cafe")) categorized.cafes.push(p);
+  if (p.types.includes("bar")) categorized.bars.push(p);
+  if (p.types.includes("bakery")) categorized.bakeries.push(p);
+}
+
   const places = uniquePlaces
     .filter(p => p.name && p.vicinity)
     .sort((a, b) => (b.rating || 0) - (a.rating || 0))
-    .slice(0, 5);
+    .slice(0, 20);
 
   const formattedPlaces = places.map(p => ({
     name: p.name,
@@ -310,7 +314,7 @@ IMPORTANT:
 - NU da sugestii generale
 
 Locații:
-${JSON.stringify(formattedPlaces)}
+${JSON.stringify(categorized)}
 
 Răspunde STRICT în limba utilizatorului: ${language}
 `;
