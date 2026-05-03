@@ -101,9 +101,21 @@ app.post("/chat", authMiddleware, async (req, res) => {
     const supabaseUser = req.supabaseUser;
     const { message } = req.body;
 
-    if (!message) {
-      return res.status(400).json({ error: "Lipsește mesajul" });
-    }
+    const { message } = req.body;
+
+    // New
+    const lowerMsg = message.toLowerCase();
+
+    const wantsSweet =
+      lowerMsg.includes("dulce") ||
+      lowerMsg.includes("desert");
+
+    const wantsPizza =
+      lowerMsg.includes("pizza");
+
+        if (!message) {
+          return res.status(400).json({ error: "Lipsește mesajul" });
+        }
 
   const { data: sub, error: subError } = await supabase
   .from("subscriptions")
@@ -130,6 +142,36 @@ const plan = sub?.plan || "FREE";
       systemPrompt =
         "Ești expert de top în nutriție. Răspunde detaliat și strategic.";
     }
+
+    // Google places
+
+        if ((wantsSweet || wantsPizza) && req.body.location && plan !== "FREE") {
+          const { lat, lng } = req.body.location;
+
+          const keyword = wantsSweet ? "bakery" : "pizza";
+
+          const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=2000&keyword=${keyword}&key=${process.env.GOOGLE_PLACES_KEY}`;
+
+          const response = await fetch(url);
+          const data = await response.json();
+
+          const places = data.results?.slice(0, 5) || [];
+
+          const formattedPlaces = places.map(p => ({
+            name: p.name,
+            rating: p.rating,
+            address: p.vicinity
+          }));
+
+  systemPrompt += `
+Ai acces la locații reale din apropierea utilizatorului:
+
+${JSON.stringify(formattedPlaces)}
+
+Alege 1-2 locații și recomandă concret ce să mănânce.
+NU lista toate opțiunile.
+`;
+}
 
     let { data: conv, error: convError } = await supabaseUser
       .from("conversations")
