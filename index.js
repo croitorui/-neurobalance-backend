@@ -208,12 +208,12 @@ const plan = sub?.plan || "FREE";
 
     // Google places
 
-     if (req.body.location) {
+   // Google places
+if (req.body.location && eat_out === true) {
   console.log("ENTER GOOGLE BLOCK");
 
   const { lat, lng } = req.body.location;
 
-  // 🔹 fallback robust — nu depindem strict de intent
   let searchQueries;
 
   switch (intent) {
@@ -227,13 +227,13 @@ const plan = sub?.plan || "FREE";
       searchQueries = ["restaurant", "food"];
       break;
     default:
-      searchQueries = ["restaurant", "food"]; // fallback IMPORTANT
+      searchQueries = ["restaurant"];
   }
 
   let allPlaces = [];
 
   for (const q of searchQueries) {
-    const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=5000&keyword=${encodeURIComponent(q)}&key=${process.env.GOOGLE_PLACES_KEY}`;
+    const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=5000&type=restaurant&keyword=${encodeURIComponent(q)}&key=${process.env.GOOGLE_PLACES_KEY}`;
 
     try {
       const response = await fetch(url);
@@ -253,11 +253,11 @@ const plan = sub?.plan || "FREE";
     }
   }
 
-  // 🔹 dacă nu avem nimic → fallback HARD
+  // fallback dacă nu avem rezultate
   if (allPlaces.length === 0) {
-    console.warn("No results from queries → fallback restaurant");
+    console.warn("Fallback restaurant");
 
-    const fallbackUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=5000&keyword=restaurant&key=${process.env.GOOGLE_PLACES_KEY}`;
+    const fallbackUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=5000&type=restaurant&key=${process.env.GOOGLE_PLACES_KEY}`;
 
     try {
       const response = await fetch(fallbackUrl);
@@ -271,15 +271,11 @@ const plan = sub?.plan || "FREE";
     }
   }
 
-  // 🔹 deduplicare
+  // deduplicate
   const uniquePlaces = Array.from(
     new Map(allPlaces.map(p => [p.place_id, p])).values()
   );
 
-  console.log("TOTAL RAW:", allPlaces.length);
-  console.log("TOTAL UNIQUE:", uniquePlaces.length);
-
-  // 🔹 sortare + selecție
   const places = uniquePlaces
     .filter(p => p.name && p.vicinity)
     .sort((a, b) => (b.rating || 0) - (a.rating || 0))
@@ -293,8 +289,9 @@ const plan = sub?.plan || "FREE";
 
   console.log("FINAL PLACES:", formattedPlaces);
 
-  // 🔹 inject în AI
- systemPrompt += `
+  // IMPORTANT: doar dacă avem rezultate
+  if (formattedPlaces.length > 0) {
+    systemPrompt += `
 Ești un ghid local care recomandă locuri reale unde poate mânca utilizatorul.
 
 Ai deja o listă de locații din apropiere.
@@ -312,17 +309,12 @@ IMPORTANT:
 - NU inventa locații
 - NU da sugestii generale
 
-Dacă lista este goală:
-spune EXACT:
-"Nu am găsit locații în apropierea ta."
-
 Locații:
 ${JSON.stringify(formattedPlaces)}
-`;
 
-systemPrompt += `
 Răspunde STRICT în limba utilizatorului: ${language}
 `;
+  }
 }
 
     let { data: conv, error: convError } = await supabaseUser
