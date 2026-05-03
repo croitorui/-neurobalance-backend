@@ -149,7 +149,7 @@ app.post("/chat", authMiddleware, async (req, res) => {
       }
       `
           },
-          { role: "user", content: message }
+         { role: "user", content: translated }
         ],
         temperature: 0
       });
@@ -208,65 +208,93 @@ const plan = sub?.plan || "FREE";
 
     // Google places
 
-      if (
-      (intent === "dessert" || intent === "pizza") &&
+     if (
+      (intent === "dessert" || intent === "pizza" || intent === "food") &&
+      eat_out &&
       req.body.location
-    ) 
+    )
 {
-          const { lat, lng } = req.body.location;
+  const { lat, lng } = req.body.location;
 
-        const type =
-          intent === "dessert" ? "bakery" : "restaurant";
+  let searchQueries = [];
 
-        const keyword =
-          intent === "dessert"
-            ? "dessert cafe ice cream"
-            : "pizza";
+  // 🔹 intent → queries
+  if (intent === "dessert") {
+    searchQueries = ["dessert", "ice cream", "cake", "pastry", "gelato"];
+  } else if (intent === "pizza") {
+    searchQueries = ["pizza"];
+  } else if (intent === "food") {
+    searchQueries = ["restaurant"];
+  } else {
+    searchQueries = ["restaurant"]; // fallback safe
+  }
 
-          const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=3000&type=${type}&keyword=${keyword}&key=${process.env.GOOGLE_PLACES_KEY}`;
+  let allPlaces = [];
 
-          const response = await fetch(url);
-          const data = await response.json();
+  // 🔹 fetch Google Places pentru fiecare query
+  for (const q of searchQueries) {
+    const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=5000&keyword=${encodeURIComponent(q)}&key=${process.env.GOOGLE_PLACES_KEY}`;
 
-          if (data.status !== "OK") {
-              console.error("GOOGLE ERROR:", data);
-            }
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
 
-          console.log("GOOGLE STATUS:", data.status);
-            console.log("GOOGLE RESULTS:", data.results?.length);
-            console.log("GOOGLE DATA:", data);
+      console.log("QUERY:", q);
+      console.log("STATUS:", data.status);
+      console.log("RESULTS:", data.results?.length || 0);
 
-          const places = data.results?.slice(0, 5) || [];
+      if (data.status === "OK" && Array.isArray(data.results)) {
+        allPlaces.push(...data.results);
+      } else {
+        console.warn("Google Places non-OK:", data.status);
+      }
+    } catch (err) {
+      console.error("Google fetch error:", err);
+    }
+  }
 
-          const formattedPlaces = places.map(p => ({
-            name: p.name,
-            rating: p.rating,
-            address: p.vicinity
-          }));
+  // 🔹 eliminare duplicate (IMPORTANT)
+  const uniquePlaces = Array.from(
+    new Map(allPlaces.map(p => [p.place_id, p])).values()
+  );
 
-           systemPrompt += `
-              IMPORTANT:
+  console.log("TOTAL RAW:", allPlaces.length);
+  console.log("TOTAL UNIQUE:", uniquePlaces.length);
 
-              Utilizatorul caută locuri reale din oraș.
+const places = uniquePlaces
+  .filter(p => p.rating && p.rating >= 4)
+  .sort((a, b) => b.rating - a.rating)
+  .slice(0, 5);
 
-              Trebuie să folosești DOAR locațiile de mai jos.
-              NU inventa nume de locații.
-              NU presupune orașul.
-              NU da sugestii generale.
+  const formattedPlaces = places.map(p => ({
+    name: p.name,
+    rating: p.rating,
+    address: p.vicinity
+  }));
 
-              Dacă lista este goală → spune clar:
-              "Nu am găsit locații în apropierea ta."
+  // 🔹 inject în AI
+  systemPrompt += `
+IMPORTANT:
 
-              Locații:
-              ${JSON.stringify(formattedPlaces)}
+Utilizatorul caută locuri reale din oraș.
 
-              Alege 1-2 și recomandă concret ce să mănânce acolo.
-              `;
+Trebuie să folosești DOAR locațiile de mai jos.
+NU inventa locații.
+NU presupune orașul.
 
-              systemPrompt += `
-                Răspunde STRICT în limba utilizatorului: ${language}
-                `;
-            }
+Dacă lista este goală → spune clar:
+"Nu am găsit locații în apropierea ta."
+
+Locații:
+${JSON.stringify(formattedPlaces)}
+
+Alege 1-2 și recomandă concret ce să mănânce acolo.
+`;
+
+  systemPrompt += `
+Răspunde STRICT în limba utilizatorului: ${language}
+`;
+}
 
     let { data: conv, error: convError } = await supabaseUser
       .from("conversations")
