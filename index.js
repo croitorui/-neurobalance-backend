@@ -144,6 +144,36 @@ app.post("/chat", authMiddleware, async (req, res) => {
 
 const finalImageUrl = image_url || (type === "image" ? message : null);
 
+// ================= CONVERSATION INIT =================
+let { data: conv, error: convError } = await supabaseUser
+  .from("conversations")
+  .select("id")
+  .eq("user_id", user_id)
+  .order("created_at", { ascending: false })
+  .limit(1);
+
+if (convError) {
+  return res.status(500).json({ error: "Eroare conversații", details: convError });
+}
+
+let conversation_id;
+
+if (!conv || conv.length === 0) {
+  const { data: newConv, error: newConvError } = await supabaseUser
+    .from("conversations")
+    .insert([{ user_id }])
+    .select("id")
+    .single();
+
+  if (newConvError || !newConv) {
+    return res.status(500).json({ error: "Nu s-a putut crea conversația" });
+  }
+
+  conversation_id = newConv.id;
+} else {
+  conversation_id = conv[0].id;
+}
+
   // ================= IMAGE CHECK =================
 if (finalImageUrl) {
   console.log("📸 IMAGE DETECTED");
@@ -548,36 +578,7 @@ Răspunde în limba: ${language}
 `;
 }
 }
-
-    let { data: conv, error: convError } = await supabaseUser
-      .from("conversations")
-      .select("id")
-      .eq("user_id", user_id)
-      .order("created_at", { ascending: false })
-      .limit(1);
-
-    if (convError) {
-      return res.status(500).json({ error: "Eroare conversații", details: convError });
-    }
-
-    let conversation_id;
-
-    if (!conv || conv.length === 0) {
-      const { data: newConv, error: newConvError } = await supabaseUser
-        .from("conversations")
-        .insert([{ user_id }])
-        .select("id")
-        .single();
-
-      if (newConvError || !newConv) {
-        return res.status(500).json({ error: "Nu s-a putut crea conversația", details: newConvError });
-      }
-
-      conversation_id = newConv.id;
-    } else {
-      conversation_id = conv[0].id;
-    }
-
+  
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -653,7 +654,7 @@ await supabaseUser.from("messages").insert([
     user_id,
     conversation_id,
     role: "assistant",
-    content: req.aiReply || fullReply,
+    content: fullReply,
     type: "text"
   }
 ]);
