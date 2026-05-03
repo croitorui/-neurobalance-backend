@@ -161,7 +161,7 @@ const plan = sub?.plan || "FREE";
 
     // Google places
 
-       if ((wantsSweet || wantsPizza) && req.body.location) {
+       if ((wantsSweet || wantsPizza) && wantsOut && req.body.location) {
           const { lat, lng } = req.body.location;
 
           const keyword = wantsSweet ? "bakery" : "pizza";
@@ -183,17 +183,24 @@ const plan = sub?.plan || "FREE";
             address: p.vicinity
           }));
 
-            systemPrompt += `
-            Utilizatorul ar putea dori ceva din oraș.
+           systemPrompt += `
+              IMPORTANT:
 
-            Dacă cererea implică ieșit în oraș → recomandă locații reale.
-            Dacă nu → oferă sugestii generale.
+              Utilizatorul caută locuri reale din oraș.
 
-            Locații disponibile:
-            ${JSON.stringify(formattedPlaces)}
+              Trebuie să folosești DOAR locațiile de mai jos.
+              NU inventa nume de locații.
+              NU presupune orașul.
+              NU da sugestii generale.
 
-            Alege inteligent.
-            `;
+              Dacă lista este goală → spune clar:
+              "Nu am găsit locații în apropierea ta."
+
+              Locații:
+              ${JSON.stringify(formattedPlaces)}
+
+              Alege 1-2 și recomandă concret ce să mănânce acolo.
+              `;
             }
 
     let { data: conv, error: convError } = await supabaseUser
