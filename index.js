@@ -96,6 +96,19 @@ const openai = new OpenAI({
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+function safeJSONParse(text) {
+  try {
+    const clean = text
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
+
+    return JSON.parse(clean);
+  } catch {
+    return null;
+  }
+}
+
 async function detectAndTranslate(text) {
   const res = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -152,7 +165,7 @@ Analizezi o imagine pentru o aplicație de nutriție și fitness.
 Returnează DOAR JSON:
 
 {
-  "category": "food | hydration | fitness | body | supplement | other",
+  "category": "food | hydration | fitness | body | supplement | education | other",
   "confidence": 0-100
 }
 
@@ -163,6 +176,7 @@ Reguli de clasificare:
 - fitness = exerciții fizice, sală, antrenamente, yoga
 - body = corp uman, anatomie, digestie, sistem nervos
 - supplement = vitamine, proteine, suplimente alimentare
+- education = diagrame, scheme, informații despre sănătate, infografice
 - other = orice fără legătură cu nutriția, sănătatea sau corpul
 
 IMPORTANT:
@@ -184,7 +198,11 @@ IMPORTANT:
   temperature: 0
 });
 
-    imageCheck = JSON.parse(checkRes.choices[0].message.content);
+ imageCheck =
+  safeJSONParse(checkRes.choices[0].message.content) || {
+    category: "other",
+    confidence: 0
+  };
 
   } catch (err) {
     console.error("Image check error:", err);
@@ -193,9 +211,14 @@ IMPORTANT:
   console.log("IMAGE CHECK:", imageCheck);
 
   // HARD BLOCK
-const allowedCategories = ["food", "hydration", "fitness", "body", "supplement"];
+const allowedCategories = ["food", "hydration", "fitness", "body", "education","supplement"];
 
-if (!allowedCategories.includes(imageCheck.category) && imageCheck.confidence < 60) {
+if (
+  !allowedCategories.includes(imageCheck.category) &&
+  imageCheck.confidence < 50
+)
+
+{
   return res.json({
     reply: "Imaginea nu este relevantă pentru nutriție sau fitness."
   });
@@ -276,9 +299,12 @@ if (message && type !== "image") {
         eat_out: false
       };
 
-try {
-  analysis = JSON.parse(analysisRes.choices[0].message.content);
-} catch {}
+analysis =
+  safeJSONParse(analysisRes.choices[0].message.content) || {
+    language: "unknown",
+    intent: "general",
+    eat_out: false
+  };
 
 const { intent, eat_out } = analysis;
 
