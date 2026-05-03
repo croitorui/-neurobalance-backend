@@ -209,10 +209,9 @@ const plan = sub?.plan || "FREE";
     // Google places
 
      if (
-      (intent === "dessert" || intent === "pizza" || intent === "food") &&
-      eat_out &&
-      req.body.location
-    )
+        (intent === "dessert" || intent === "pizza" || intent === "food") &&
+        req.body.location
+      )
 {
   const { lat, lng } = req.body.location;
 
@@ -262,8 +261,6 @@ const plan = sub?.plan || "FREE";
   console.log("TOTAL UNIQUE:", uniquePlaces.length);
 
 const places = uniquePlaces
-  .filter(p => p.rating && p.rating >= 4)
-  .sort((a, b) => b.rating - a.rating)
   .slice(0, 5);
 
   const formattedPlaces = places.map(p => ({
