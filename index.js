@@ -208,29 +208,30 @@ const plan = sub?.plan || "FREE";
 
     // Google places
 
-     if (
-        (intent === "dessert" || intent === "pizza" || intent === "food") &&
-        req.body.location
-      )
-{
+     if (req.body.location) {
+  console.log("ENTER GOOGLE BLOCK");
+
   const { lat, lng } = req.body.location;
 
-  let searchQueries = [];
+  // 🔹 fallback robust — nu depindem strict de intent
+  let searchQueries;
 
-  // 🔹 intent → queries
-  if (intent === "dessert") {
-    searchQueries = ["dessert", "ice cream", "cake", "pastry", "gelato"];
-  } else if (intent === "pizza") {
-    searchQueries = ["pizza"];
-  } else if (intent === "food") {
-    searchQueries = ["restaurant"];
-  } else {
-    searchQueries = ["restaurant"]; // fallback safe
+  switch (intent) {
+    case "dessert":
+      searchQueries = ["dessert", "ice cream", "cake", "pastry", "gelato"];
+      break;
+    case "pizza":
+      searchQueries = ["pizza"];
+      break;
+    case "food":
+      searchQueries = ["restaurant", "food"];
+      break;
+    default:
+      searchQueries = ["restaurant", "food"]; // fallback IMPORTANT
   }
 
   let allPlaces = [];
 
-  // 🔹 fetch Google Places pentru fiecare query
   for (const q of searchQueries) {
     const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=5000&keyword=${encodeURIComponent(q)}&key=${process.env.GOOGLE_PLACES_KEY}`;
 
@@ -252,7 +253,25 @@ const plan = sub?.plan || "FREE";
     }
   }
 
-  // 🔹 eliminare duplicate (IMPORTANT)
+  // 🔹 dacă nu avem nimic → fallback HARD
+  if (allPlaces.length === 0) {
+    console.warn("No results from queries → fallback restaurant");
+
+    const fallbackUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=5000&keyword=restaurant&key=${process.env.GOOGLE_PLACES_KEY}`;
+
+    try {
+      const response = await fetch(fallbackUrl);
+      const data = await response.json();
+
+      if (data.status === "OK") {
+        allPlaces.push(...data.results);
+      }
+    } catch (err) {
+      console.error("Fallback error:", err);
+    }
+  }
+
+  // 🔹 deduplicare
   const uniquePlaces = Array.from(
     new Map(allPlaces.map(p => [p.place_id, p])).values()
   );
@@ -260,35 +279,48 @@ const plan = sub?.plan || "FREE";
   console.log("TOTAL RAW:", allPlaces.length);
   console.log("TOTAL UNIQUE:", uniquePlaces.length);
 
-const places = uniquePlaces
-  .slice(0, 5);
+  // 🔹 sortare + selecție
+  const places = uniquePlaces
+    .filter(p => p.name && p.vicinity)
+    .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+    .slice(0, 5);
 
   const formattedPlaces = places.map(p => ({
     name: p.name,
-    rating: p.rating,
+    rating: p.rating || "N/A",
     address: p.vicinity
   }));
 
+  console.log("FINAL PLACES:", formattedPlaces);
+
   // 🔹 inject în AI
-  systemPrompt += `
+ systemPrompt += `
+Ești un ghid local care recomandă locuri reale unde poate mânca utilizatorul.
+
+Ai deja o listă de locații din apropiere.
+
+Sarcina ta:
+- alege 1 sau 2 locații din listă
+- pentru fiecare:
+  - spune numele
+  - spune rating-ul (dacă există)
+  - spune adresa
+  - recomandă concret ce să mănânce acolo
+
 IMPORTANT:
+- folosește DOAR locațiile din listă
+- NU inventa locații
+- NU da sugestii generale
 
-Utilizatorul caută locuri reale din oraș.
-
-Trebuie să folosești DOAR locațiile de mai jos.
-NU inventa locații.
-NU presupune orașul.
-
-Dacă lista este goală → spune clar:
+Dacă lista este goală:
+spune EXACT:
 "Nu am găsit locații în apropierea ta."
 
 Locații:
 ${JSON.stringify(formattedPlaces)}
-
-Alege 1-2 și recomandă concret ce să mănânce acolo.
 `;
 
-  systemPrompt += `
+systemPrompt += `
 Răspunde STRICT în limba utilizatorului: ${language}
 `;
 }
