@@ -171,6 +171,10 @@ const plan = sub?.plan || "FREE";
           const response = await fetch(url);
           const data = await response.json();
 
+          console.log("GOOGLE STATUS:", data.status);
+            console.log("GOOGLE RESULTS:", data.results?.length);
+            console.log("GOOGLE DATA:", data);
+
           const places = data.results?.slice(0, 5) || [];
 
           const formattedPlaces = places.map(p => ({
