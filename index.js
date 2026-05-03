@@ -207,10 +207,41 @@ const plan = sub?.plan || "FREE";
     }
 
    // Google places
-if (req.body.location && eat_out === true) {
+if (req.body.location) {
   console.log("ENTER GOOGLE BLOCK");
 
   const { lat, lng } = req.body.location;
+
+  // Detectare locație reală (reverse geocoding)
+let userLocationText = "";
+
+try {
+  const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${process.env.GOOGLE_PLACES_KEY}`;
+  
+  const geoRes = await fetch(geoUrl);
+  const geoData = await geoRes.json();
+
+  if (geoData.status === "OK") {
+    const components = geoData.results[0].address_components;
+
+    const street = components.find(c => c.types.includes("route"))?.long_name;
+    const number = components.find(c => c.types.includes("street_number"))?.long_name;
+    const city = components.find(c => c.types.includes("locality"))?.long_name;
+    const country = components.find(c => c.types.includes("country"))?.long_name;
+
+    const parts = [
+      street && number ? `${street} ${number}` : street,
+      city,
+      country
+    ].filter(Boolean);
+
+    userLocationText = parts.join(", ");
+
+    console.log("USER LOCATION:", userLocationText);
+  }
+} catch (err) {
+  console.error("Geocode error:", err);
+}
 
 const types = [
   "restaurant",
@@ -229,7 +260,7 @@ const types = [
       const response = await fetch(url);
       const data = await response.json();
 
-      console.log("QUERY:", q);
+     console.log("TYPE:", type);
       console.log("STATUS:", data.status);
       console.log("RESULTS:", data.results?.length || 0);
 
@@ -280,45 +311,83 @@ for (const p of uniquePlaces) {
   if (p.types.includes("bakery")) categorized.bakeries.push(p);
 }
 
-  const places = uniquePlaces
-    .filter(p => p.name && p.vicinity)
-    .sort((a, b) => (b.rating || 0) - (a.rating || 0))
-    .slice(0, 20);
 
-  const formattedPlaces = places.map(p => ({
-    name: p.name,
-    rating: p.rating || "N/A",
-    address: p.vicinity
-  }));
+console.log("FINAL CATEGORIZED:", categorized);
 
-  console.log("FINAL PLACES:", formattedPlaces);
+// verificăm dacă avem orice rezultat
+const hasPlaces =
+  categorized.restaurants.length > 0 ||
+  categorized.cafes.length > 0 ||
+  categorized.bars.length > 0 ||
+  categorized.bakeries.length > 0;
 
-  // IMPORTANT: doar dacă avem rezultate
-  if (formattedPlaces.length > 0) {
-    systemPrompt += `
-Ești un ghid local care recomandă locuri reale unde poate mânca utilizatorul.
+const clean = (arr) =>
+  arr
+    .filter(p => p.name && p.vicinity) // elimină junk
+    .sort((a, b) => (b.rating || 0) - (a.rating || 0)) // TOP rating
+    .slice(0, 5)
+    .map(p => ({
+      name: p.name,
+      rating: p.rating || "N/A",
+      address: p.vicinity
+    }));
 
-Ai deja o listă de locații din apropiere.
+const cleanedCategorized = {
+  restaurants: clean(categorized.restaurants),
+  cafes: clean(categorized.cafes),
+  bars: clean(categorized.bars),
+  bakeries: clean(categorized.bakeries),
+};
+
+if (hasPlaces) {
+   systemPrompt += `
+Ești un ghid local foarte precis.
+
+Utilizatorul se află la:
+${userLocationText}
+
+Ai următoarele locații reale din apropiere:
+
+${JSON.stringify(cleanedCategorized)}
 
 Sarcina ta:
-- alege 1 sau 2 locații din listă
-- pentru fiecare:
-  - spune numele
-  - spune rating-ul (dacă există)
-  - spune adresa
-  - recomandă concret ce să mănânce acolo
+- afișează între 5 și 20 locații totale
+- distribuie-le pe categorii
+- NU te limita la 1-2 exemple
+- grupează clar pe categorii:
+  - Restaurante
+  - Cafenele
+  - Baruri
+  - Bakery / Desert
+- pentru fiecare locație:
+  - nume
+  - rating (dacă există)
+  - adresă
+  - ce merită să comande
 
 IMPORTANT:
-- folosește DOAR locațiile din listă
 - NU inventa locații
-- NU da sugestii generale
+- folosește DOAR lista primită
+- NU limita răspunsul
+- răspunsul trebuie să fie util și realist
 
-Locații:
-${JSON.stringify(categorized)}
-
-Răspunde STRICT în limba utilizatorului: ${language}
+Răspunde în limba: ${language}
 `;
   }
+  else {
+  systemPrompt += `
+Utilizatorul se află la:
+${userLocationText || "locație necunoscută"}
+
+Nu s-au găsit locații reale în apropiere.
+
+Explică situația și oferă alternative:
+- ce tipuri de restaurante să caute
+- ce zone sunt de obicei bune (centru, mall, etc)
+
+Răspunde în limba: ${language}
+`;
+}
 }
 
     let { data: conv, error: convError } = await supabaseUser
