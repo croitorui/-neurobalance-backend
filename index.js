@@ -100,35 +100,38 @@ app.post("/chat", authMiddleware, async (req, res) => {
     const user_id = req.user.id;
     const supabaseUser = req.supabaseUser;
     const { message } = req.body;
-    
-    console.log("MESSAGE:", message);
-    console.log("LOWER:", message.toLowerCase());
-    console.log("WANTS SWEET:", wantsSweet);
-    console.log("LOCATION:", req.body.location);
 
-    // New
+    if (!message) {
+      return res.status(400).json({ error: "Lipsește mesajul" });
+    }
+
     const lowerMsg = message.toLowerCase();
 
-const wantsSweet =
-  lowerMsg.includes("dulce") ||
-  lowerMsg.includes("desert") ||
-  lowerMsg.includes("pofta") ||
-  lowerMsg.includes("ceva bun") ||
-  lowerMsg.includes("ceva dulce");
+    const wantsSweet =
+      lowerMsg.includes("dulce") ||
+      lowerMsg.includes("desert") ||
+      lowerMsg.includes("pofta") ||
+      lowerMsg.includes("poftă") ||
+      lowerMsg.includes("ceva bun") ||
+      lowerMsg.includes("ceva dulce");
 
-const wantsPizza =
-  lowerMsg.includes("pizza") ||
-  lowerMsg.includes("mancare");
+    const wantsPizza =
+      lowerMsg.includes("pizza");
 
-const wantsOut =
-  lowerMsg.includes("oras") ||
-  lowerMsg.includes("în oraș") ||
-  lowerMsg.includes("afara") ||
-  lowerMsg.includes("restaurant");
+    const wantsOut =
+      lowerMsg.includes("oras") ||
+      lowerMsg.includes("oraș") ||
+      lowerMsg.includes("în oraș") ||
+      lowerMsg.includes("afara") ||
+      lowerMsg.includes("afară") ||
+      lowerMsg.includes("restaurant");
 
-        if (!message) {
-          return res.status(400).json({ error: "Lipsește mesajul" });
-        }
+    console.log("MESSAGE:", message);
+    console.log("LOWER:", lowerMsg);
+    console.log("WANTS SWEET:", wantsSweet);
+    console.log("WANTS PIZZA:", wantsPizza);
+    console.log("WANTS OUT:", wantsOut);
+    console.log("LOCATION:", req.body.location);
 
   const { data: sub, error: subError } = await supabase
   .from("subscriptions")
@@ -158,7 +161,7 @@ const plan = sub?.plan || "FREE";
 
     // Google places
 
-        if ((wantsSweet || wantsPizza) && wantsOut && req.body.location) {
+       if ((wantsSweet || wantsPizza) && req.body.location) {
           const { lat, lng } = req.body.location;
 
           const keyword = wantsSweet ? "bakery" : "pizza";
@@ -176,15 +179,18 @@ const plan = sub?.plan || "FREE";
             address: p.vicinity
           }));
 
-  systemPrompt += `
-Ai acces la locații reale din apropierea utilizatorului:
+            systemPrompt += `
+            Utilizatorul ar putea dori ceva din oraș.
 
-${JSON.stringify(formattedPlaces)}
+            Dacă cererea implică ieșit în oraș → recomandă locații reale.
+            Dacă nu → oferă sugestii generale.
 
-Alege 1-2 locații și recomandă concret ce să mănânce.
-NU lista toate opțiunile.
-`;
-}
+            Locații disponibile:
+            ${JSON.stringify(formattedPlaces)}
+
+            Alege inteligent.
+            `;
+            }
 
     let { data: conv, error: convError } = await supabaseUser
       .from("conversations")
