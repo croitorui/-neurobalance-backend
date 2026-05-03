@@ -95,36 +95,61 @@ const openai = new OpenAI({
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+async function detectAndTranslate(text) {
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: `
+Detectează limba și traduce în engleză.
+
+Returnează DOAR JSON:
+{"language":"...","translated":"..."}
+`
+      },
+      { role: "user", content: text }
+    ],
+    temperature: 0
+  });
+
+  try {
+    return JSON.parse(res.choices[0].message.content);
+  } catch {
+    return { language: "unknown", translated: text };
+  }
+}
+
 app.post("/chat", authMiddleware, async (req, res) => {
   try {
     const user_id = req.user.id;
     const supabaseUser = req.supabaseUser;
     const { message } = req.body;
 
+    const { language, translated } = await detectAndTranslate(message);
+
+    console.log("LANG:", language);
+    console.log("TRANSLATED:", translated);
+
     if (!message) {
       return res.status(400).json({ error: "Lipsește mesajul" });
     }
 
-    const lowerMsg = message.toLowerCase();
+    const lowerMsg = translated.toLowerCase();
 
     const wantsSweet =
-      lowerMsg.includes("dulce") ||
-      lowerMsg.includes("desert") ||
-      lowerMsg.includes("pofta") ||
-      lowerMsg.includes("poftă") ||
-      lowerMsg.includes("ceva bun") ||
-      lowerMsg.includes("ceva dulce");
+  lowerMsg.includes("dessert") ||
+  lowerMsg.includes("sweet") ||
+  lowerMsg.includes("cake") ||
+  lowerMsg.includes("ice cream");
 
-    const wantsPizza =
-      lowerMsg.includes("pizza");
+const wantsPizza =
+  lowerMsg.includes("pizza");
 
-    const wantsOut =
-      lowerMsg.includes("oras") ||
-      lowerMsg.includes("oraș") ||
-      lowerMsg.includes("în oraș") ||
-      lowerMsg.includes("afara") ||
-      lowerMsg.includes("afară") ||
-      lowerMsg.includes("restaurant");
+const wantsOut =
+  lowerMsg.includes("restaurant") ||
+  lowerMsg.includes("eat") ||
+  lowerMsg.includes("out");
 
     console.log("MESSAGE:", message);
     console.log("LOWER:", lowerMsg);
@@ -161,12 +186,13 @@ const plan = sub?.plan || "FREE";
 
     // Google places
 
-      if ((wantsSweet || wantsPizza) && req.body.location) {
+     if ((wantsSweet || wantsPizza) && wantsOut && req.body.location) {
           const { lat, lng } = req.body.location;
 
-          const keyword = wantsSweet ? "dessert OR cafe OR ice cream" : "pizza";
+          const type = wantsSweet ? "bakery" : "restaurant";
+          const keyword = wantsSweet ? "cake" : "pizza";
 
-          const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=2000&keyword=${keyword}&key=${process.env.GOOGLE_PLACES_KEY}`;
+          const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=3000&type=${type}&keyword=${keyword}&key=${process.env.GOOGLE_PLACES_KEY}`;
 
           const response = await fetch(url);
           const data = await response.json();
@@ -201,6 +227,10 @@ const plan = sub?.plan || "FREE";
 
               Alege 1-2 și recomandă concret ce să mănânce acolo.
               `;
+
+              systemPrompt += `
+                Răspunde STRICT în limba utilizatorului: ${language}
+                `;
             }
 
     let { data: conv, error: convError } = await supabaseUser
