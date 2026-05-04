@@ -911,6 +911,7 @@ const plan = sub?.plan || "FREE";
           Nu ignora aceste informații.
           `;
           }
+          
 
    // Google places
 if (req.body.location) {
