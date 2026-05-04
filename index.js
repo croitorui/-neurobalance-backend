@@ -732,33 +732,29 @@ if (
 
   // ================= FOOD ANALYSIS =================
   const analysisRes = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "system",
-        content: `
-Ești nutriționist.
+  model: "gpt-4o-mini",
+  messages: [
+    {
+      role: "system",
+      content: `
+Analizează mesajul.
 
-Analizează imaginea și spune:
-- ce este
-- estimare calorii
-- protein / carbs / fat
-- dacă este sănătos sau nu
+Returnează DOAR JSON:
 
-Fii realist.
+{
+  "language": "ro/en/de/...",
+  "intent": "body_goal | food_choice | general",
+  "eat_out": true/false,
+  "goal": "slabire | ingrasare | mentinere | energie | null",
+  "main_issue": "balonare | stres | oboseala | digestie | null",
+  "last_mood": "anxietate | obosit | ok | stresat | null"
+}
 `
-      },
-      {
-        role: "user",
-        content: [
-          {
-            type: "image_url",
-            image_url: { url: finalImageUrl }
-          }
-        ]
-      }
-    ]
-  });
+    },
+    { role: "user", content: translated }
+  ],
+  temperature: 0
+});
 
 const result = analysisRes.choices[0].message.content;
 
@@ -795,27 +791,47 @@ if (message && type !== "image") {
     console.log("LANG:", language);
     console.log("TRANSLATED:", translated);
 
-    const analysisRes = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: `
-      Analizează mesajul userului.
+const analysisRes = await openai.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: [
+    {
+      role: "system",
+      content: `
+Analizează mesajul utilizatorului.
 
-      Returnează DOAR JSON:
+Returnează DOAR JSON valid:
 
-      {
-        "language": "ro/en/de/...",
-        "intent": "dessert | pizza | food | general",
-        "eat_out": true/false
-      }
-      `
-          },
-         { role: "user", content: translated }
-        ],
-        temperature: 0
-      });
+{
+  "language": "ro/en/de/...",
+  "intent": "body_goal | food_choice | general",
+  "eat_out": true,
+  "goal": "slabire | ingrasare | mentinere | energie | null",
+  "main_issue": "balonare | stres | oboseala | digestie | null",
+  "last_mood": "anxietate | obosit | ok | stresat | null"
+}
+
+REGULI:
+- NU adăuga text în afara JSON
+- dacă nu există valoare → pune null
+`
+    },
+    { role: "user", content: translated }
+  ],
+  temperature: 0
+});
+
+// ================= PARSARE =================
+const parsed =
+  safeJSONParse(analysisRes.choices[0].message.content) || {};
+
+const intent = parsed.intent || "general";
+const eat_out = parsed.eat_out || false;
+
+const goal = parsed.goal || null;
+const main_issue = parsed.main_issue || null;
+const last_mood = parsed.last_mood || null;
+
+console.log("ANALYSIS:", parsed);
 
       let analysis = {
         language: "unknown",
@@ -831,6 +847,22 @@ analysis =
   };
 
 const { intent, eat_out } = analysis;
+
+// ================= SAVE USER STATE (SAFE) =================
+const { data: existingState } = await supabaseUser
+  .from("user_state")
+  .select("*")
+  .eq("user_id", user_id)
+  .single();
+
+await supabaseUser
+  .from("user_state")
+  .upsert({
+    user_id,
+    goal: stateData.goal ?? existingState?.goal ?? null,
+    main_issue: stateData.main_issue ?? existingState?.main_issue ?? null,
+    last_mood: stateData.last_mood ?? existingState?.last_mood ?? null
+  });
 
 console.log("ANALYSIS:", analysis);
 
@@ -860,6 +892,25 @@ const plan = sub?.plan || "FREE";
 
    const normalizedPlan = String(plan || "FREE").toUpperCase();
     let systemPrompt = PROMPTS[normalizedPlan] || PROMPTS.FREE;
+    // ================= LOAD USER STATE =================
+      const { data: userState } = await supabaseUser
+        .from("user_state")
+        .select("*")
+        .eq("user_id", user_id)
+        .single();
+
+       if (userState) {
+            systemPrompt += `
+            
+          USER CONTEXT (OBLIGATORIU):
+          - goal: ${userState.goal || "necunoscut"}
+          - main_issue: ${userState.main_issue || "necunoscut"}
+          - last_mood: ${userState.last_mood || "necunoscut"}
+
+          Trebuie să adaptezi răspunsul la acest context.
+          Nu ignora aceste informații.
+          `;
+          }
 
    // Google places
 if (req.body.location) {
