@@ -757,15 +757,6 @@ Răspunde simplu.
   return res.json({ reply: result });
 }
 
-    let language = "ro";
-let translated = message || "";
-
-if (message && type !== "image") {
-  const result = await detectAndTranslate(message);
-  language = result.language;
-  translated = result.translated;
-}
-
     console.log("LANG:", language);
     console.log("TRANSLATED:", translated);
 
@@ -774,49 +765,34 @@ const analysisRes = await openai.chat.completions.create({
   messages: [
     {
       role: "system",
-      content: `
-Analizează mesajul utilizatorului.
+     content: `
+Detectează limba și analizează mesajul utilizatorului.
 
 Returnează DOAR JSON valid:
 
 {
   "language": "ro/en/de/...",
+  "translated": "...",
   "intent": "body_goal | food_choice | general",
   "eat_out": true,
   "goal": "slabire | ingrasare | mentinere | energie | null",
   "main_issue": "balonare | stres | oboseala | digestie | null",
   "last_mood": "anxietate | obosit | ok | stresat | null"
 }
-  IMPORTANT:
 
-- Normalizează TOATE conceptele la următoarele valori exacte:
+IMPORTANT:
 
-goal:
-- slabire
-- ingrasare
-- mentinere
-- energie
+- Normalizează TOATE valorile exact:
+  goal: slabire | ingrasare | mentinere | energie
+  main_issue: balonare | stres | oboseala | digestie
+  last_mood: anxietate | obosit | ok | stresat
 
-main_issue:
-- balonare
-- stres
-- oboseala
-- digestie
-
-last_mood:
-- anxietate
-- obosit
-- ok
-- stresat
-
-NU folosi sinonime.
-NU traduce în engleză.
-NU inventa valori.
-
-Dacă nu e clar → pune null.
+- NU folosi sinonime
+- NU traduce valorile în engleză
+- Dacă nu e clar → null
 `
     },
-    { role: "user", content: translated }
+   { role: "user", content: message }
   ],
   temperature: 0
 });
@@ -824,6 +800,10 @@ Dacă nu e clar → pune null.
 // ================= PARSARE =================
 const parsed =
   safeJSONParse(analysisRes.choices[0].message.content) || {};
+
+  const language = parsed.language || "ro";
+const translated = parsed.translated || message;
+
   const normalize = (v) =>
   v === undefined || v === null || v === "null" || v === ""
     ? null
