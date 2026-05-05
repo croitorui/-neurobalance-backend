@@ -757,9 +757,6 @@ Răspunde simplu.
   return res.json({ reply: result });
 }
 
-    console.log("LANG:", language);
-    console.log("TRANSLATED:", translated);
-
 const analysisRes = await openai.chat.completions.create({
   model: "gpt-4o-mini",
   messages: [
@@ -792,7 +789,7 @@ IMPORTANT:
 - Dacă nu e clar → null
 `
     },
-   { role: "user", content: message }
+{ role: "user", content: translated }
   ],
   temperature: 0
 });
