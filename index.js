@@ -787,6 +787,33 @@ Returnează DOAR JSON valid:
   "main_issue": "balonare | stres | oboseala | digestie | null",
   "last_mood": "anxietate | obosit | ok | stresat | null"
 }
+  IMPORTANT:
+
+- Normalizează TOATE conceptele la următoarele valori exacte:
+
+goal:
+- slabire
+- ingrasare
+- mentinere
+- energie
+
+main_issue:
+- balonare
+- stres
+- oboseala
+- digestie
+
+last_mood:
+- anxietate
+- obosit
+- ok
+- stresat
+
+NU folosi sinonime.
+NU traduce în engleză.
+NU inventa valori.
+
+Dacă nu e clar → pune null.
 `
     },
     { role: "user", content: translated }
@@ -809,6 +836,31 @@ const goal = normalize(parsed.goal);
 const main_issue = normalize(parsed.main_issue);
 const last_mood = normalize(parsed.last_mood);
 
+const mapGoal = {
+  weight_loss: "slabire",
+  gain_weight: "ingrasare",
+  maintenance: "mentinere",
+  energy: "energie"
+};
+
+const mapIssue = {
+  bloating: "balonare",
+  stress: "stres",
+  fatigue: "oboseala",
+  digestion: "digestie"
+};
+
+const mapMood = {
+  anxious: "anxietate",
+  tired: "obosit",
+  ok: "ok",
+  stressed: "stresat"
+};
+
+const finalGoal = mapGoal[goal] || goal;
+const finalIssue = mapIssue[main_issue] || main_issue;
+const finalMood = mapMood[last_mood] || last_mood;
+
 console.log("ANALYSIS:", parsed);
 
 // ================= SAVE USER STATE (SAFE) =================
@@ -822,9 +874,9 @@ await supabaseUser
   .from("user_state")
   .upsert({
     user_id,
-    goal: goal ?? existingState?.goal ?? null,
-    main_issue: main_issue ?? existingState?.main_issue ?? null,
-    last_mood: last_mood ?? existingState?.last_mood ?? null
+    goal: finalGoal ?? existingState?.goal ?? null,
+    main_issue: finalIssue ?? existingState?.main_issue ?? null,
+    last_mood: finalMood ?? existingState?.last_mood ?? null
   });
 
   if (!message && !finalImageUrl){
