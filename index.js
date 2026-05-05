@@ -789,7 +789,7 @@ IMPORTANT:
 - Dacă nu e clar → null
 `
     },
-{ role: "user", content: translated }
+  { role: "user", content: translated || message }
   ],
   temperature: 0
 });
@@ -1127,17 +1127,18 @@ Răspunde în limba: ${language}
       return res.status(500).json({ error: "Eroare istoric", details: historyError });
     }
 
-   const stream = await openai.chat.completions.create({
+const completion = await openai.chat.completions.create({
   model: "gpt-4o-mini",
   messages: [
     { role: "system", content: systemPrompt },
     ...(history || []),
-   { role: "user", content: message || finalImageUrl || "Analizează contextul." }
-  ],
-  stream: true,
+    { role: "user", content: translated || message || finalImageUrl }
+  ]
 });
 
-res.setHeader("Content-Type", "text/plain");
+const fullReply = completion.choices[0].message.content;
+
+return res.json({ reply: fullReply });
 
 let fullReply = "";
 
@@ -1167,7 +1168,7 @@ await supabaseUser.from("messages").insert([
 ]);
 
   } catch (err) {
-    console.error("EROARE:", err);
+    console.error("EROARE FULL:", err.stack || err);
     res.status(500).json({ error: "Eroare server" });
   }
 });
