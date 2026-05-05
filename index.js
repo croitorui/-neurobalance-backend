@@ -818,7 +818,7 @@ await supabaseUser
   .from("user_state")
   .upsert({
     user_id,
-    goal: goal ?? existingState?.goal ?? null,
+    goal: existingState?.goal || goal || null,
     main_issue: main_issue ?? existingState?.main_issue ?? null,
     last_mood: last_mood ?? existingState?.last_mood ?? null
   });
