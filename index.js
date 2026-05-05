@@ -654,61 +654,40 @@ if (!conv || conv.length === 0) {
 if (finalImageUrl) {
   console.log("📸 IMAGE DETECTED");
 
-let imageCheck = {
-  category: "other",
-  confidence: 0
-};
+  // ================= IMAGE CHECK =================
+  let imageCheck = { category: "other", confidence: 0 };
 
   try {
-   const checkRes = await openai.chat.completions.create({
-  model: "gpt-4o-mini",
-  messages: [
-    {
-      role: "system",
-      content: `
-Analizezi o imagine pentru o aplicație de nutriție și fitness.
+    const checkRes = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `
+Clasifică imaginea.
 
 Returnează DOAR JSON:
-
 {
   "category": "food | hydration | fitness | body | supplement | education | other",
   "confidence": 0-100
 }
-
-Reguli de clasificare:
-
-- food = mâncare, mese, ingrediente, fructe, legume, semințe
-- hydration = apă, lichide, băuturi
-- fitness = exerciții fizice, sală, antrenamente, yoga
-- body = corp uman, anatomie, digestie, sistem nervos
-- supplement = vitamine, proteine, suplimente alimentare
-- education = diagrame, scheme, informații despre sănătate, infografice
-- other = orice fără legătură cu nutriția, sănătatea sau corpul
-
-IMPORTANT:
-- Alege o singură categorie
-- Nu folosi TRUE/FALSE
-- Răspunde strict JSON valid
 `
-    },
-    {
-      role: "user",
-      content: [
+        },
         {
-          type: "image_url",
-          image_url: { url: finalImageUrl }
+          role: "user",
+          content: [
+            {
+              type: "image_url",
+              image_url: { url: finalImageUrl }
+            }
+          ]
         }
-      ]
-    }
-  ],
-  temperature: 0
-});
+      ],
+      temperature: 0
+    });
 
- imageCheck =
-  safeJSONParse(checkRes.choices[0].message.content) || {
-    category: "other",
-    confidence: 0
-  };
+    imageCheck =
+      safeJSONParse(checkRes.choices[0].message.content) || imageCheck;
 
   } catch (err) {
     console.error("Image check error:", err);
@@ -716,67 +695,66 @@ IMPORTANT:
 
   console.log("IMAGE CHECK:", imageCheck);
 
-  // HARD BLOCK
-const allowedCategories = ["food", "hydration", "fitness", "body", "education","supplement"];
+const allowed = ["food", "hydration", "fitness", "body", "education", "supplement"];
 
-if (
-  !allowedCategories.includes(imageCheck.category) &&
-  imageCheck.confidence < 50
-)
-
-{
-  return res.json({
-    reply: "Imaginea nu este relevantă pentru nutriție sau fitness."
-  });
-}
-
-  // ================= FOOD ANALYSIS =================
-  const analysisRes = await openai.chat.completions.create({
-  model: "gpt-4o-mini",
-  messages: [
-    {
-      role: "system",
-      content: `
-Analizează mesajul.
-
-Returnează DOAR JSON:
-
-{
-  "language": "ro/en/de/...",
-  "intent": "body_goal | food_choice | general",
-  "eat_out": true/false,
-  "goal": "slabire | ingrasare | mentinere | energie | null",
-  "main_issue": "balonare | stres | oboseala | digestie | null",
-  "last_mood": "anxietate | obosit | ok | stresat | null"
-}
-`
-    },
-    { role: "user", content: translated }
-  ],
-  temperature: 0
-});
-
-const result = analysisRes.choices[0].message.content;
-
-// NU return aici
-await supabaseUser.from("messages").insert([
-  {
-    user_id,
-    conversation_id,
-    role: "user",
-    content: finalImageUrl,
-    type: "image"
-  },
-  {
-    user_id,
-    conversation_id,
-    role: "assistant",
-    content: result,
-    type: "text"
+  if (!allowed.includes(imageCheck.category) && imageCheck.confidence < 50) {
+    return res.json({
+      reply: "Imaginea nu este relevantă pentru nutriție sau fitness."
+    });
   }
-]);
 
-return res.json({ reply: result });
+  // ================= IMAGE ANALYSIS =================
+  const imageAnalysisRes = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: `
+Ești nutriționist.
+
+Analizează imaginea și spune:
+- ce este
+- estimare calorii
+- protein / carbs / fat
+- dacă este sănătos sau nu
+
+Răspunde simplu.
+`
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "image_url",
+            image_url: { url: finalImageUrl }
+          }
+        ]
+      }
+    ]
+  });
+
+  const result = imageAnalysisRes.choices[0].message.content;
+
+  // ================= SAVE =================
+  await supabaseUser.from("messages").insert([
+    {
+      user_id,
+      conversation_id,
+      role: "user",
+      content: finalImageUrl,
+      type: "image"
+    },
+    {
+      user_id,
+      conversation_id,
+      role: "assistant",
+      content: result,
+      type: "text"
+    }
+  ]);
+
+  // 🔴 FOARTE IMPORTANT
+  return res.json({ reply: result });
 }
 
     let language = "ro";
@@ -809,10 +787,6 @@ Returnează DOAR JSON valid:
   "main_issue": "balonare | stres | oboseala | digestie | null",
   "last_mood": "anxietate | obosit | ok | stresat | null"
 }
-
-REGULI:
-- NU adăuga text în afara JSON
-- dacă nu există valoare → pune null
 `
     },
     { role: "user", content: translated }
@@ -833,38 +807,21 @@ const last_mood = parsed.last_mood || null;
 
 console.log("ANALYSIS:", parsed);
 
-      let analysis = {
-        language: "unknown",
-        intent: "general",
-        eat_out: false
-      };
-
-analysis =
-  safeJSONParse(analysisRes.choices[0].message.content) || {
-    language: "unknown",
-    intent: "general",
-    eat_out: false
-  };
-
-const { intent, eat_out } = analysis;
-
 // ================= SAVE USER STATE (SAFE) =================
 const { data: existingState } = await supabaseUser
   .from("user_state")
   .select("*")
   .eq("user_id", user_id)
-  .single();
+  .maybeSingle();
 
 await supabaseUser
   .from("user_state")
   .upsert({
     user_id,
-    goal: stateData.goal ?? existingState?.goal ?? null,
-    main_issue: stateData.main_issue ?? existingState?.main_issue ?? null,
-    last_mood: stateData.last_mood ?? existingState?.last_mood ?? null
+    goal: goal ?? existingState?.goal ?? null,
+    main_issue: main_issue ?? existingState?.main_issue ?? null,
+    last_mood: last_mood ?? existingState?.last_mood ?? null
   });
-
-console.log("ANALYSIS:", analysis);
 
   if (!message && !finalImageUrl){
   return res.status(400).json({ error: "Lipsește mesaj sau imagine" });
@@ -872,7 +829,6 @@ console.log("ANALYSIS:", analysis);
     
 
     console.log("MESSAGE:", message);
-    console.log("ANALYSIS:", analysis);
     console.log("INTENT:", intent);
     console.log("EAT OUT:", eat_out);
     console.log("LOCATION:", req.body.location);
@@ -897,7 +853,7 @@ const plan = sub?.plan || "FREE";
         .from("user_state")
         .select("*")
         .eq("user_id", user_id)
-        .single();
+       .maybeSingle();
 
        if (userState) {
             systemPrompt += `
