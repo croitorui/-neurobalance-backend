@@ -797,13 +797,17 @@ Returnează DOAR JSON valid:
 // ================= PARSARE =================
 const parsed =
   safeJSONParse(analysisRes.choices[0].message.content) || {};
+  const normalize = (v) =>
+  v === undefined || v === null || v === "null" || v === ""
+    ? null
+    : v;
 
 const intent = parsed.intent || "general";
 const eat_out = parsed.eat_out || false;
 
-const goal = parsed.goal || null;
-const main_issue = parsed.main_issue || null;
-const last_mood = parsed.last_mood || null;
+const goal = normalize(parsed.goal);
+const main_issue = normalize(parsed.main_issue);
+const last_mood = normalize(parsed.last_mood);
 
 console.log("ANALYSIS:", parsed);
 
@@ -818,7 +822,7 @@ await supabaseUser
   .from("user_state")
   .upsert({
     user_id,
-    goal: existingState?.goal || goal || null,
+    goal: goal ?? existingState?.goal ?? null,
     main_issue: main_issue ?? existingState?.main_issue ?? null,
     last_mood: last_mood ?? existingState?.last_mood ?? null
   });
