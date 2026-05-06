@@ -871,6 +871,50 @@ const finalGoal = mapGoal[goal] || goal;
 const finalIssue = mapIssue[main_issue] || main_issue;
 const finalMood = mapMood[last_mood] || last_mood;
 
+// ================= SAVE BEHAVIOR EVENTS =================
+
+const behaviorEvents = [];
+
+if (finalMood) {
+  behaviorEvents.push({
+    user_id,
+    conversation_id,
+    event_type: "mood",
+    event_value: finalMood,
+    source_message: message
+  });
+}
+
+if (finalIssue) {
+  behaviorEvents.push({
+    user_id,
+    conversation_id,
+    event_type: "issue",
+    event_value: finalIssue,
+    source_message: message
+  });
+}
+
+if (finalGoal) {
+  behaviorEvents.push({
+    user_id,
+    conversation_id,
+    event_type: "goal",
+    event_value: finalGoal,
+    source_message: message
+  });
+}
+
+if (behaviorEvents.length > 0) {
+  const { error: behaviorError } = await supabaseUser
+    .from("behavior_events")
+    .insert(behaviorEvents);
+
+  if (behaviorError) {
+    console.error("Behavior events error:", behaviorError);
+  }
+}
+
 console.log("ANALYSIS:", parsed);
 console.log("FINAL INTENT:", intent);
 console.log("FINAL EAT_OUT:", eat_out);
