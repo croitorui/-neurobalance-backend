@@ -768,6 +768,7 @@ if (message && type !== "image") {
 
     console.log("LANG:", language);
     console.log("TRANSLATED:", translated);
+    console.log("ORIGINAL:", message);
 
 const analysisRes = await openai.chat.completions.create({
   model: "gpt-4o-mini",
@@ -781,7 +782,7 @@ Returnează DOAR JSON valid:
 
 {
   "language": "ro/en/de/...",
-  "intent": "body_goal | food_choice | general",
+  "intent": "body_goal | meal_advice | restaurant_choice | general",
   "eat_out": true,
   "goal": "slabire | ingrasare | mentinere | energie | null",
   "main_issue": "balonare | stres | oboseala | digestie | null",
@@ -829,8 +830,17 @@ const parsed =
     ? null
     : v;
 
-const intent = parsed.intent || "general";
-const eat_out = parsed.eat_out || false;
+const validIntents = [
+  "body_goal",
+  "meal_advice",
+  "restaurant_choice",
+  "general"
+];
+
+const intent = validIntents.includes(parsed.intent)
+  ? parsed.intent
+  : "general";
+const eat_out = parsed.eat_out || true;
 
 const goal = normalize(parsed.goal);
 const main_issue = normalize(parsed.main_issue);
@@ -862,6 +872,8 @@ const finalIssue = mapIssue[main_issue] || main_issue;
 const finalMood = mapMood[last_mood] || last_mood;
 
 console.log("ANALYSIS:", parsed);
+console.log("FINAL INTENT:", intent);
+console.log("FINAL EAT_OUT:", eat_out);
 
 // ================= SAVE USER STATE (SAFE) =================
 const { data: existingState } = await supabaseUser
@@ -926,7 +938,11 @@ const plan = sub?.plan || "FREE";
           
 
    // Google places
-if (req.body.location) {
+if (
+  req.body.location &&
+  (intent === "restaurant_choice" || eat_out === true)
+)
+{
   console.log("ENTER GOOGLE BLOCK");
 
   const { lat, lng } = req.body.location;
@@ -973,7 +989,7 @@ const types = [
   let allPlaces = [];
 
   for (const type of types) {
-   const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=5000&type=${type}&key=${process.env.GOOGLE_PLACES_KEY}`;
+   const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=2500&type=${type}&key=${process.env.GOOGLE_PLACES_KEY}`;
 
     try {
       const response = await fetch(url);
@@ -997,7 +1013,7 @@ const types = [
   if (allPlaces.length === 0) {
     console.warn("Fallback restaurant");
 
-    const fallbackUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=5000&type=restaurant&key=${process.env.GOOGLE_PLACES_KEY}`;
+    const fallbackUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=2500&type=restaurant&key=${process.env.GOOGLE_PLACES_KEY}`;
 
     try {
       const response = await fetch(fallbackUrl);
@@ -1042,9 +1058,14 @@ const hasPlaces =
 
 const clean = (arr) =>
   arr
-    .filter(p => p.name && p.vicinity) // elimină junk
+    .filter(
+  p =>
+    p.name &&
+    p.vicinity &&
+    p.rating >= 4
+)
     .sort((a, b) => (b.rating || 0) - (a.rating || 0)) // TOP rating
-    .slice(0, 5)
+    .slice(0, 3)
     .map(p => ({
       name: p.name,
       rating: p.rating || "N/A",
@@ -1070,14 +1091,6 @@ Ai următoarele locații reale din apropiere:
 ${JSON.stringify(cleanedCategorized)}
 
 Sarcina ta:
-- afișează între 5 și 20 locații totale
-- distribuie-le pe categorii
-- NU te limita la 1-2 exemple
-- grupează clar pe categorii:
-  - Restaurante
-  - Cafenele
-  - Baruri
-  - Bakery / Desert
 - pentru fiecare locație:
   - nume
   - rating (dacă există)
@@ -1085,10 +1098,9 @@ Sarcina ta:
   - ce merită să comande
 
 IMPORTANT:
-- NU inventa locații
-- folosește DOAR lista primită
-- NU limita răspunsul
-- răspunsul trebuie să fie util și realist
+- recomandă între 5 și 10 locații relevante
+- doar dacă utilizatorul cere explicit restaurante / mâncare / ieșit în oraș
+- NU recomanda locații pentru întrebări generale despre slăbire, simptome sau energie
 
 Răspunde în limba: ${language}
 `;
