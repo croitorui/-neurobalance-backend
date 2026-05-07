@@ -905,10 +905,22 @@ if (finalGoal) {
   });
 }
 
+console.log("FINAL MOOD:", finalMood);
+console.log("FINAL ISSUE:", finalIssue);
+console.log("FINAL GOAL:", finalGoal);
+console.log("BEHAVIOR EVENTS ARRAY:", behaviorEvents);
+
 if (behaviorEvents.length > 0) {
-  const { error: behaviorError } = await supabaseUser
+
+  console.log("TRY INSERT BEHAVIOR EVENTS");
+
+  const { data, error: behaviorError } = await supabaseUser
     .from("behavior_events")
-    .insert(behaviorEvents);
+    .insert(behaviorEvents)
+    .select();
+
+  console.log("INSERT RESULT:", data);
+  console.log("BEHAVIOR ERROR:", behaviorError);
 
   if (behaviorError) {
     console.error("Behavior events error:", behaviorError);
