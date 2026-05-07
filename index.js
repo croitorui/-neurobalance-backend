@@ -134,6 +134,58 @@ async function detectAndTranslate(text) {
   }
 }
 
+async function extractPatterns(message) {
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: `
+Detectează pattern-uri comportamentale.
+
+Returnează DOAR JSON:
+
+{
+  "patterns": [
+    {
+      "pattern_type": "stress_eating",
+      "confidence": 80
+    }
+  ]
+}
+
+PATTERN-URI PERMISE:
+- stress_eating
+- late_night_eating
+- emotional_eating
+- low_hydration
+- digestive_instability
+- energy_instability
+- anxiety_pattern
+- meal_skipping
+- poor_recovery
+
+IMPORTANT:
+- maxim 2 pattern-uri
+- dacă nu există → patterns: []
+- NU inventa pattern-uri noi
+`
+      },
+      {
+        role: "user",
+        content: message
+      }
+    ],
+    temperature: 0
+  });
+
+  return (
+    safeJSONParse(res.choices[0].message.content) || {
+      patterns: []
+    }
+  );
+}
+
 const PROMPTS = {
   FREE: `
 IDENTITATE
@@ -840,7 +892,7 @@ const validIntents = [
 const intent = validIntents.includes(parsed.intent)
   ? parsed.intent
   : "general";
-const eat_out = parsed.eat_out || true;
+const eat_out = parsed.eat_out ?? false;
 
 const goal = normalize(parsed.goal);
 const main_issue = normalize(parsed.main_issue);
@@ -930,6 +982,77 @@ if (behaviorEvents.length > 0) {
 console.log("ANALYSIS:", parsed);
 console.log("FINAL INTENT:", intent);
 console.log("FINAL EAT_OUT:", eat_out);
+
+// ================= PATTERN EXTRACTION =================
+
+const detectedPatterns = await extractPatterns(message);
+
+console.log("DETECTED PATTERNS:", detectedPatterns);
+
+// ================= SAVE PATTERNS =================
+
+if (detectedPatterns?.patterns?.length > 0) {
+
+  for (const pattern of detectedPatterns.patterns) {
+
+    const patternType = pattern.pattern_type;
+    const confidence = pattern.confidence || 50;
+
+    // caută pattern existent
+    const { data: existingPattern } = await supabaseUser
+      .from("behavior_patterns")
+      .select("*")
+      .eq("user_id", user_id)
+      .eq("pattern_type", patternType)
+      .maybeSingle();
+
+    // INSERT dacă nu există
+    if (!existingPattern) {
+
+      const { error } = await supabaseUser
+        .from("behavior_patterns")
+        .insert({
+          user_id,
+          pattern_type: patternType,
+          confidence,
+          occurrences: 1,
+          intensity: 1,
+          first_detected: new Date().toISOString(),
+          last_detected: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error("INSERT PATTERN ERROR:", error);
+      }
+
+    } else {
+
+      // UPDATE dacă există
+      const { error } = await supabaseUser
+        .from("behavior_patterns")
+        .update({
+          occurrences: (existingPattern.occurrences || 1) + 1,
+
+          confidence: Math.min(
+            (existingPattern.confidence || 50) + 5,
+            100
+          ),
+
+          intensity: Math.min(
+            (existingPattern.intensity || 1) + 1,
+            10
+          ),
+
+          last_detected: new Date().toISOString()
+        })
+        .eq("id", existingPattern.id);
+
+      if (error) {
+        console.error("UPDATE PATTERN ERROR:", error);
+      }
+    }
+  }
+}
 
 // ================= SAVE USER STATE (SAFE) =================
 const { data: existingState } = await supabaseUser
